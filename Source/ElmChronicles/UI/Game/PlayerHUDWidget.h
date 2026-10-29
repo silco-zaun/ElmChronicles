@@ -38,6 +38,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UDialogueWidget> mDialogueWidget;
 
+	// B 키 메뉴. 다른 창보다 위에 그려지도록 WBP_PlayerHUD Canvas의 마지막 자식으로 둔다.
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UMenuWidget> mMenuWidget;
+
 protected:
 	virtual void NativeOnInitialized();
 
@@ -48,6 +52,8 @@ public:
 	void ComputeItemInfoLocation(const FPointerEvent& InMouseEvent);
 	void SetInventoryVisible(bool Visible);
 	bool IsInventoryVisible() const;
+	void SetMenuVisible(bool Visible);
+	bool IsMenuVisible() const;
 	// 커서가 필요한 창이 하나라도 열려 있는지
 	bool IsAnyWindowOpen() const;
 	// 상호작용 안내 문구를 띄운다. ActionText가 비어 있으면 숨긴다.

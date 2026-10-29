@@ -47,4 +47,10 @@ UDefaultInput::UDefaultInput()
 
 	if (InteractInputAction.Succeeded())
 		mInputActionMap.Add(TEXT("Interact"), InteractInputAction.Object);
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> MenuInputAction(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/Input/IA_Menu.IA_Menu'"));
+
+	if (MenuInputAction.Succeeded())
+		mInputActionMap.Add(TEXT("Menu"), MenuInputAction.Object);
 }

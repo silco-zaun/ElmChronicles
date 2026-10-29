@@ -117,6 +117,9 @@ void AElmPlayerController::SetupInputComponent()
 
 	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Interact")),
 		ETriggerEvent::Started, this, &AElmPlayerController::InteractKey);
+
+	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Menu")),
+		ETriggerEvent::Started, this, &AElmPlayerController::ToggleMenu);
 }
 
 void AElmPlayerController::ToggleInventory()
@@ -131,6 +134,25 @@ void AElmPlayerController::SetInventoryOpen(bool Open)
 		return;
 
 	mPlayerHUDWidget->SetInventoryVisible(Open);
+	RefreshInputMode();
+}
+
+void AElmPlayerController::ToggleMenu()
+{
+	if (mPlayerHUDWidget)
+		SetMenuOpen(!mPlayerHUDWidget->IsMenuVisible());
+}
+
+void AElmPlayerController::SetMenuOpen(bool Open)
+{
+	if (!mPlayerHUDWidget)
+		return;
+
+	mPlayerHUDWidget->SetMenuVisible(Open);
+
+	// 멈추면 월드의 Tick과 타이머가 모두 선다. (몬스터, 애니메이션, 사망 후 병원 이동 타이머까지)
+	// 입력은 "Trigger when Paused"를 켠 액션(IA_Menu)만 들어온다. 그래서 B로 다시 닫을 수 있고 이동 / 공격 / I / E는 막힌다.
+	SetPause(Open);
 	RefreshInputMode();
 }
 
@@ -207,8 +229,10 @@ void AElmPlayerController::InteractKey()
 	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
 	IInteractable* Interactable = Cast<IInteractable>(mInteractTarget.Get());
 
-	// 검색은 0.1초마다라서 그 사이에 상황이 바뀌었을 수 있다. (NPC가 전투에 들어감 등) 누르는 순간 한 번 더 확인한다.
-	if (!IsValid(PlayerCharacter) || !Interactable || !Interactable->CanInteract(PlayerCharacter))
+	// 죽은 뒤 첫 검색(0.1초) 전에는 mInteractTarget이 남아 있다.
+	// 죽은 채로 포탈을 타면 HP 0이 메모에 적힌다.
+	if (!IsValid(PlayerCharacter) || PlayerCharacter->IsDead() || !Interactable ||
+		!Interactable->CanInteract(PlayerCharacter))
 		return;
 
 	Interactable->Interact(PlayerCharacter);

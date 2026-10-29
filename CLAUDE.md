@@ -10,10 +10,10 @@ Unreal Engine 5.8 C++ 싱글플레이 액션 RPG. 런타임 모듈은 `ElmChroni
 
 ```powershell
 # 에디터 타깃 빌드 (UBT가 Source 폴더를 직접 훑으므로 새 .h/.cpp도 .sln 재생성 없이 컴파일된다)
-& "C:\UE_5.8\Engine\Build\BatchFiles\Build.bat" ElmChroniclesEditor Win64 Development -Project="C:\26-SeSAC\Unreal\ElmChronicles\ElmChronicles.uproject" -WaitMutex
+& "C:\UE_5.8\Engine\Build\BatchFiles\Build.bat" ElmChroniclesEditor Win64 Development -Project="C:\Tadi\Work\ElmChronicles\ElmChronicles.uproject" -WaitMutex
 
 # 에디터 실행
-& "C:\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:\26-SeSAC\Unreal\ElmChronicles\ElmChronicles.uproject"
+& "C:\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:\Tadi\Work\ElmChronicles\ElmChronicles.uproject"
 ```
 
 - 에디터가 Live Coding으로 열려 있으면 UBT 빌드가 거부된다. 에디터를 닫고 빌드하거나, 에디터에서 Ctrl+Alt+F11로 Live Coding 컴파일한다. `UPROPERTY`/`UCLASS` 구조가 바뀐 헤더 변경은 에디터를 재시작해야 안전하다.
@@ -87,6 +87,20 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - `AElmAIController`: AIPerception 시야 + `BT_Monster`/`BB_Monster`(`Content/AI`). 몬스터와 NPC가 같은 BT를 쓰고, 컨트롤러 팀은 조종하는 Pawn을 따른다.
 - Blackboard 키 이름은 `MonsterBBKey` 네임스페이스와 BB 에셋이 정확히 같아야 한다.
 - `BTService_CheckAttackRange`(0.1초)가 `UpdateTarget`으로 타겟을 고르고, 캡슐 표면 간 거리로 `InAttackRange`를 쓴다. `BTTask_MonsterAttack`은 `AAICharacter::PlayAttack`/`StopAttack`으로 어빌리티를 실행·취소한다.
+
+### 레벨 이동 / 메모(SaveSubsystem)
+
+- GameMode는 `DefaultEngine.ini`의 `GlobalDefaultGameMode`(`AElmGameModeBase`)라서 맵마다 지정하지 않는다. `ChoosePlayerStart`는 `APlayerStartPIE`("Play From Here") → 태그 없는 첫 PlayerStart → 엔진 기본(무작위) 순으로 고른다.
+- `OpenLevel`은 GameInstance와 그 서브시스템 말고는 PlayerState(ASC), 캐릭터(가방)까지 모두 새로 만든다. 그래서 `USaveSubsystem`(GameInstanceSubsystem)이 "메모" `UElmSaveGame`(`Save/ElmSaveGame.h`)를 들고 있고, nullptr이면 새 게임이다.
+  - 쓰기는 한 곳이다: `TravelToLevel` → `APlayerCharacter::WriteToSave`. 읽기는 부품마다 자기 초기화 때 한다(`UInventoryComponent::InitInventory`, `APlayerCharacter::InitAttributes`).
+  - 이어 갈 상태를 늘리려면 `UElmSaveGame`에 필드를 추가하고 → `WriteToSave`에서 적고 → 그 부품의 초기화(`CallOrRegisterDataLoaded`를 거치는 함수)에서 읽는다.
+  - 능력치는 Level / HP / MP / Exp / Gold의 Base 값만 적는다. 나머지는 Level로 `DT_LevelStat`에서 다시 계산된다. `InitLevelStats`(Max 값)보다 먼저 HP / MP를 넣으면 Clamp로 0이 된다.
+- 이동: `ALevelPortal`(`Interaction/`, IInteractable)이 `USaveSubsystem::TravelToLevel(Player, Level, StartTag)`를 부른다. URL은 `"맵경로#태그"`이고, 엔진이 그 `PlayerStartTag`를 가진 PlayerStart에 세운다. 태그 = **연결 이름**: 한 문(연결)의 양쪽 끝이 같은 이름을 쓴다. Field ↔ Shop이면 Field 포탈과 Shop 포탈의 `mTargetStartTag`, Field와 Shop의 도착 PlayerStart 태그가 모두 `Shop`이다(`Shop#Shop`, `Field#Shop`). 같은 두 맵 사이에 문이 여러 개여도 구분된다. 예외는 어느 맵에서나 불리는 고정 태그다: `Respawn`(Hospital, 사망 후), `Room`(KyleHouse, 메뉴 "귀환"이 쓴다).
+  - 지금 연결 이름: `OrcCave`, `Shop`, `Tavern`, `Hospital`, `HeroHouse`(KyleHouse), `Castle`(Palace). 실내 맵의 포탈은 `Exit_ToTown` 표식 앞 (x, 100, 105), Box Extent 100이다.
+  - 페이드 아웃 / 인과 중복 이동 방지(`mIsTraveling` + 입력 끄기)도 `USaveSubsystem`이 맡는다. 도착은 `PostLoadMapWithWorld`로 알고, 로딩 직후 큰 DeltaTime 때문에 검은 화면을 0.5초 유지한 뒤 밝힌다. 카메라 페이드라 HUD(UMG)는 가려지지 않는다.
+  - PIE 로그의 `UEDPIE_0_` 접두사 경로는 정상이다.
+- 사망: `APlayerCharacter::OnKilledBy` → `AElmGameModeBase::PlayerKilled` → 2초 뒤 `TravelToLevel(Hospital, "Respawn")`. 메모의 HP가 0이면 죽어서 온 것으로 보고 `InitAttributes`가 HP / MP를 가득 찬 채로 둔다(부활 코드는 따로 없다). 사망 페널티는 없다.
+- 결정 이유와 함정 기록은 [Docs/LevelTravel_Progress.md](Docs/LevelTravel_Progress.md).
 
 ### 입력 / 상호작용 / UI
 

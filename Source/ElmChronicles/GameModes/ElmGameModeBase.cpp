@@ -5,15 +5,22 @@
 #include "../Characters/PlayerCharacter.h"
 #include "../Player/ElmPlayerController.h"
 #include "../Player/ElmPlayerState.h"
+#include "../Subsystem/SaveSubsystem.h"
 #include "GameFramework/PlayerStart.h"
+#include "Engine/GameInstance.h"
 #include "Engine/PlayerStartPIE.h"
 #include "EngineUtils.h"
+#include "TimerManager.h"
 
 AElmGameModeBase::AElmGameModeBase()
 {
 	DefaultPawnClass = APlayerCharacter::StaticClass();
 	PlayerControllerClass = AElmPlayerController::StaticClass();
 	PlayerStateClass = AElmPlayerState::StaticClass();
+
+	// 맵은 Soft 경로로만 들고 있다. (미리 불러 두지 않는다. 여는 것은 OpenLevel이 한다)
+	mRespawnLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/Maps/ElmKingdom/Hospital.Hospital")));
+	mRespawnStartTag = TEXT("Respawn");
 }
 
 AActor* AElmGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
@@ -38,4 +45,25 @@ AActor* AElmGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
 
 	// 태그 없는 PlayerStart가 없는 맵(포탈로만 들어오는 방 등)은 엔진 방식(빈 자리 중 무작위)을 쓴다.
 	return Super::ChoosePlayerStart_Implementation(Player);
+}
+
+void AElmGameModeBase::PlayerKilled(APlayerCharacter* Player)
+{
+	// 쓰러지는 모습을 보여 준 뒤에 옮긴다.
+	// 타이머가 불릴 때 캐릭터가 이미 사라졌을 수도 있어서 약한 참조(TWeakObjectPtr)로 실어 보낸다.
+	FTimerHandle TimerHandle;
+	GetWorldTimerManager().SetTimer(TimerHandle,
+		FTimerDelegate::CreateUObject(this, &AElmGameModeBase::RespawnPlayer, TWeakObjectPtr<APlayerCharacter>(Player)),
+		RespawnDelay, false);
+}
+
+void AElmGameModeBase::RespawnPlayer(TWeakObjectPtr<APlayerCharacter> Player)
+{
+	if (!Player.IsValid())
+		return;
+
+	// 화면 전환, 메모 적기, 레벨 열기는 포탈과 같은 길을 쓴다. 이미 포탈로 이동 중이면 TravelToLevel이 무시한다.
+	// 메모에는 HP 0이 적히고, 병원에서 InitAttributes가 그것을 보고 HP / MP를 가득 채운 채로 둔다.
+	if (USaveSubsystem* SaveSubsystem = GetGameInstance()->GetSubsystem<USaveSubsystem>())
+		SaveSubsystem->TravelToLevel(Player.Get(), mRespawnLevel, mRespawnStartTag);
 }

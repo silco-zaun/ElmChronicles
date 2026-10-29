@@ -9,6 +9,7 @@
 #include "../Animations/AnimInstances/PlayerAnimInstance.h"
 #include "../Data/Tables/LevelStatTableRow.h"
 #include "../Data/Tables/PlayerCharacterTableRow.h"
+#include "../GameModes/ElmGameModeBase.h"
 #include "../Input/DefaultInput.h"
 #include "../Player/ElmPlayerState.h"
 #include "../Player/InventoryComponent.h"
@@ -280,10 +281,17 @@ void APlayerCharacter::InitAttributes()
 	if (!Save)
 		return;
 
-	// 이어하기면 가득 찬 HP / MP를 메모 값으로 덮는다.
+	// 메모의 HP가 0이면 죽어서 병원으로 온 것이다. (산 캐릭터는 HP가 0일 수 없다)
+	// 그때는 InitLevelStats가 가득 채운 HP / MP를 그대로 두는 것이 부활이다.
+	// 살아서 포탈로 왔으면 가득 찬 HP / MP를 메모 값으로 덮는다.
 	// MaxHP / MaxMP가 위에서 먼저 들어가 있어야 PreAttributeBaseChange의 Clamp에 0으로 잘리지 않는다.
-	mASC->SetNumericAttributeBase(UBaseAttributeSet::GetHPAttribute(), Save->HP);
-	mASC->SetNumericAttributeBase(UBaseAttributeSet::GetMPAttribute(), Save->MP);
+	if (Save->HP > 0.f)
+	{
+		mASC->SetNumericAttributeBase(UBaseAttributeSet::GetHPAttribute(), Save->HP);
+		mASC->SetNumericAttributeBase(UBaseAttributeSet::GetMPAttribute(), Save->MP);
+	}
+
+	// 경험치와 골드는 죽어도 그대로 이어진다. (사망 페널티 없음)
 	mASC->SetNumericAttributeBase(UPlayerAttributeSet::GetExpAttribute(), Save->Exp);
 	mASC->SetNumericAttributeBase(UPlayerAttributeSet::GetGoldAttribute(), Save->Gold);
 }
@@ -307,6 +315,10 @@ void APlayerCharacter::OnKilledBy(AActor* Killer)
 	GetCharacterMovement()->DisableMovement();
 
 	UE_LOG(LogTestDebug, Warning, TEXT("Player Death - Killer : %s"), *GetNameSafe(Killer));
+
+	// 어디서 언제 다시 시작할지는 게임 규칙이라 GameMode가 정한다. (GameMode는 서버에만 있어서 클라이언트에서는 null이다)
+	if (AElmGameModeBase* GameMode = GetWorld()->GetAuthGameMode<AElmGameModeBase>())
+		GameMode->PlayerKilled(this);
 }
 
 bool APlayerCharacter::AddInventoryItem(FName ItemKey)

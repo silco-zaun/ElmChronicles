@@ -5,6 +5,7 @@
 #include "DialogueWidget.h"
 #include "InventoryWidget.h"
 #include "ItemInfoWidget.h"
+#include "MenuWidget.h"
 #include "StatusBarWidget.h"
 #include "../../Item/ItemObject.h"
 
@@ -20,6 +21,7 @@ void UPlayerHUDWidget::NativeOnInitialized()
 	// 처음에는 상호작용 대상도, 대화도 없으므로 숨긴다.
 	SetInteractPrompt(FText::GetEmpty());
 	SetDialogueVisible(false);
+	SetMenuVisible(false);
 }
 
 void UPlayerHUDWidget::SetPlayerName(const FString& Name)
@@ -78,10 +80,30 @@ bool UPlayerHUDWidget::IsInventoryVisible() const
 	return mInventoryWidget->GetVisibility() == ESlateVisibility::Visible;
 }
 
+void UPlayerHUDWidget::SetMenuVisible(bool Visible)
+{
+	if (Visible)
+	{
+		// 열 때마다 지금 상황(전투 중, 사망)에 맞춰 버튼과 문구를 다시 맞춘다.
+		mMenuWidget->Refresh();
+
+		// 아이콘 위에 마우스를 올린 채로 메뉴를 열면 MouseLeave가 오지 않아 정보창이 남는다.
+		EnableItemInfoWidget(false);
+	}
+
+	mMenuWidget->SetVisibility(Visible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+}
+
+bool UPlayerHUDWidget::IsMenuVisible() const
+{
+	// IsInventoryVisible과 같은 이유로 직접 설정한 값과 비교한다.
+	return mMenuWidget->GetVisibility() == ESlateVisibility::Visible;
+}
+
 bool UPlayerHUDWidget::IsAnyWindowOpen() const
 {
 	// 나중에 스킬창, 퀘스트창이 생기면 여기에 || 로 추가한다.
-	return IsInventoryVisible();
+	return IsInventoryVisible() || IsMenuVisible();
 }
 
 void UPlayerHUDWidget::SetInteractPrompt(const FText& ActionText)
