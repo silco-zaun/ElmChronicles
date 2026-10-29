@@ -1,0 +1,9 @@
+﻿// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GameplayAbility_Melee.h"
+
+void UGameplayAbility_Melee::OnAttackHit()
+{
+	ApplyMeleeDamage();
+}
