@@ -219,4 +219,3 @@ ElmChronicles/
 | 이름 | 임대호 |
 | 이메일 | silco424@gmail.com |
 | GitHub | [@silco-zaun](https://github.com/silco-zaun) |
-| 블로그 / 이력서 | - |
