@@ -11,7 +11,7 @@
 ## 배경
 
 - [Plan.md](Plan.md) "2. 조작"에 `메뉴 | B`만 있고 내용은 정해져 있지 않았다. 인벤토리(I) / 퀘스트(P) / 지도(M)는 따로 키가 있으므로 메뉴에 넣지 않았다.
-- [LevelTravel_Progress.md](LevelTravel_Progress.md)에서 KyleHouse에 귀환용 PlayerStart(`PlayerStart_House`, 태그 `Room`)를 미리 배치해 두었다. 화면 전환, 메모 적기, 중복 이동 방지는 `USaveSubsystem::TravelToLevel`이 이미 한다.
+- 레벨 이동 작업(CLAUDE.md "레벨 이동 / 메모", 지운 진행 문서는 `git show d3b7deb:Docs/LevelTravel_Progress.md`)에서 KyleHouse에 귀환용 PlayerStart(`PlayerStart_House`, 태그 `Room`)를 미리 배치해 두었다. 화면 전환, 메모 적기, 중복 이동 방지는 `USaveSubsystem::TravelToLevel`이 이미 한다.
 - 지금 HUD의 창(인벤토리, 대화)은 모두 `WBP_PlayerHUD` 안의 자식 위젯이고 `BindWidget`으로 연결되어 있다. 창이 열렸는지는 `UPlayerHUDWidget::IsAnyWindowOpen`이 모으고, 커서 / 입력 모드는 `AElmPlayerController::RefreshInputMode`가 맞춘다.
 
 ## 결정 사항
@@ -26,10 +26,10 @@
 | 버튼이 하는 일 | 위젯은 일을 맡은 곳에 부탁하고 결과 문구만 띄운다. 귀환 → `AElmGameModeBase::Recall`, 저장 → `USaveSubsystem::SaveToDisk`, 닫기 → `AElmPlayerController::SetMenuOpen(false)` | 사망 후 병원 이동이 GameMode에 있는 것과 같다. "어디로 귀환하나 / 언제 막나"는 게임 규칙이다 |
 | 귀환 위치 | `AElmGameModeBase` 생성자에서 `mRecallLevel` = `/Game/Maps/ElmKingdom/KyleHouse.KyleHouse`, `mRecallStartTag` = `Room` | `mRespawnLevel` / `mRespawnStartTag`와 같은 방식 |
 | 전투 중 판정 | 맵의 `AElmAIController` 중 **살아 있는 Pawn을 조종하고 Blackboard `Target`이 이 플레이어**인 것이 하나라도 있으면 전투 중 (`AElmGameModeBase::IsInCombat`) | `ANPCCharacter::CanInteract`(싸우는 중엔 대화 금지)와 같은 기준이다. 버린 안: "최근 N초 안에 맞았으면 전투 중"(타이머와 상태가 새로 필요) |
-| 귀환을 막는 경우 | 전투 중, 플레이어 사망. 메뉴를 열 때 `mRecallButton`을 끄고, 전투 중이면 "전투 중에는 귀환할 수 없습니다." 문구 | 죽은 채로 귀환하면 메모 HP 0 → KyleHouse에서 HP가 가득 찬 채 시작(병원 대신 집에서 부활)하게 된다 |
+| 귀환을 막는 경우 | 전투 중, 플레이어 사망. 메뉴를 열 때 `mRecallButton`을 끄고, 전투 중이면 "전투 중에는 할 수 없습니다." 문구(4단계에서 저장과 같이 쓰도록 사용자가 바꿈) | 죽은 채로 귀환하면 메모 HP 0 → KyleHouse에서 HP가 가득 찬 채 시작(병원 대신 집에서 부활)하게 된다 |
 | 귀환 순서 | 메뉴 닫기(일시정지 해제) → `Recall` | [주의](#주의)의 "일시정지 중 TravelToLevel" |
 | 저장 | `USaveSubsystem::SaveToDisk(Player)` = `WritePlayer` + `UGameplayStatics::SaveGameToSlot(mSaveGame, "ElmSave", 0)`. 결과로 "저장했습니다." / "저장하지 못했습니다." 문구 | 포탈 이동과 같은 메모를 쓴다. 메모는 새 레벨이 초기화할 때만 읽으므로 지금 덮어써도 이번 레벨에는 영향이 없다 |
-| 저장을 막는 경우 | 플레이어 사망 | HP 0을 저장하지 않는다 |
+| 저장을 막는 경우 | 플레이어 사망, 이동 중, **전투 중**(2026-10-30 사용자가 추가). 귀환과 같은 조건이라 `Refresh`가 한 값(`IsButtonEnabled`)으로 두 버튼을 함께 켜고 끈다 | HP 0을 저장하지 않는다. 사망 / 이동 중은 `SaveToDisk`도 다시 막지만, 전투 중은 메뉴의 버튼만 막는다(`SaveToDisk`는 전투를 모른다) |
 | 불러오기 | 이번 범위 밖 | 타이틀 / 이어하기 화면이 없다. [이후 작업](#이후-작업-이-계획의-범위-밖) |
 | 게임 종료 | 같은 창 안의 확인 상자(`mQuitConfirmBox`) → "종료" → `UKismetSystemLibrary::QuitGame` | 버린 안: 확인 창용 위젯을 따로 만들기(지금은 쓰는 곳이 하나뿐) |
 | 죽은 상태에서 메뉴 | 열 수 있다(게임 종료는 가능). 열려 있는 동안 병원 이동 타이머(`RespawnDelay`)도 멈췄다가 닫으면 이어서 흐른다 | 따로 막을 이유가 없다 |
@@ -40,7 +40,7 @@
 
 | 증상 | 원인 | 해결 |
 | --- | --- | --- |
-| B로 메뉴는 열리는데 다시 B를 눌러도 안 닫힘 | 일시정지 중에는 Enhanced Input이 `bTriggerWhenPaused`가 꺼진 액션을 발동하지 않는다 | `IA_Menu`만 **Trigger when Paused** 체크. 다른 IA는 그대로 두어서 메뉴가 열린 동안 이동 / 공격 / I / E가 막히게 한다 |
+| B로 메뉴는 열리는데 다시 B를 눌러도 안 닫힘 | 일시정지 중에는 Enhanced Input이 `bTriggerWhenPaused`가 꺼진 액션을 발동하지 않는다 | `IA_Menu`만 **Trigger when Paused** 체크. 다른 IA는 그대로 두어서 메뉴가 열린 동안 이동 / 공격 / 스킬 / I / 상호작용(F, 2026-10-30에 E에서 바뀜)이 막히게 한다 |
 | 메뉴가 열린 동안 B가 안 먹음 | `FInputModeUIOnly`로 바꾸면 키 입력이 Slate 위젯으로만 가고 PlayerController에 오지 않는다 | `RefreshInputMode`의 `FInputModeGameAndUI`를 그대로 쓴다 |
 | 버튼을 클릭한 뒤 Space / Enter를 누르면 그 버튼이 또 눌림 | 클릭한 버튼이 키보드 포커스를 가져가고, 버튼은 Space / Enter를 클릭으로 처리한다 | WBP에서 모든 버튼의 **Is Focusable** 체크 해제 |
 | 귀환을 눌렀는데 화면만 멈추고 이동하지 않음, 이후 포탈도 안 됨 | 일시정지 중에는 월드 타이머가 돌지 않는다. `TravelToLevel`은 `mIsTraveling = true` 후 페이드 타이머로 `OpenLevel`을 부르므로, 멈춘 채로 부르면 타이머가 영영 안 돌고 `mIsTraveling`이 true로 남는다 | 메뉴를 먼저 닫고(`SetPause(false)`) `Recall`을 부른다 |
@@ -48,7 +48,10 @@
 | 아이템 정보창이 메뉴 뒤(어두운 배경 아래)에 남음 | 아이콘 위에 마우스를 올린 채 메뉴를 열면 MouseLeave가 오지 않는다(`SetInventoryVisible`의 주석과 같은 이유) | 메뉴를 열 때 `EnableItemInfoWidget(false)` |
 | PIE 시작 직후 크래시(`mMenuWidget` null) | C++에 `BindWidget`을 추가했는데 `WBP_PlayerHUD`에 같은 이름의 위젯이 없으면 WBP 컴파일 에러가 나고 변수가 비어 있다 | 1단계 빌드 후 PIE 전에 `WBP_PlayerHUD`에 `mMenuWidget`을 넣고 컴파일 |
 | `DefaultInput`에서 `IA_Menu`를 못 찾음 | `UDefaultInput` CDO는 에디터 시작 때 한 번 만들어진다. 그때 `IA_Menu` 파일이 없으면 다시 시작할 때까지 `"Menu"`가 없다 | `IA_Menu`를 먼저 만들어 저장한 뒤에 새 코드로 에디터를 연다 |
-| 새 `UCLASS`를 에디터를 켠 채 빌드(Hot Reload)한 세션에서 `WBP_PlayerHUD_C is not a child class of Class /Script/ElmChronicles.PlayerHUDWidget`, `CDO Constructor (ElmPlayerController): Failed to find .../WBP_PlayerHUD_C` | Hot Reload가 `UPlayerHUDWidget`을 새 클래스로 바꿨는데 `WBP_PlayerHUD`는 옛 클래스를 부모로 들고 있었다. 컨트롤러 CDO가 그 순간 WBP 클래스를 못 찾아 `mPlayerHUDWidgetClass`가 비고, 그 세션의 PIE는 HUD 없이 뜰 수 있다. 2026-10-30 00:22 1단계 빌드에서 실제로 났다(`Saved/Logs/ElmChronicles.log`, `UnrealEditor-ElmChronicles-0003.dll`, `UnrealEditor.modules`가 `-0003`을 가리킴) | 에디터를 끄고 `Build.bat` → 에디터를 다시 열고 테스트한다. Hot Reload 세션에서 한 PIE 결과는 믿지 않는다 |
+| 새 `UCLASS`를 에디터를 켠 채 빌드(Hot Reload)한 세션에서 `WBP_PlayerHUD_C is not a child class of Class /Script/ElmChronicles.PlayerHUDWidget`, `CDO Constructor (ElmPlayerController): Failed to find .../WBP_PlayerHUD_C` | Hot Reload가 `UPlayerHUDWidget`을 새 클래스로 바꿨는데 `WBP_PlayerHUD`는 옛 클래스를 부모로 들고 있었다. 컨트롤러 CDO가 그 순간 WBP 클래스를 못 찾아 `mPlayerHUDWidgetClass`가 비고, 그 세션의 PIE는 HUD 없이 뜰 수 있다. 2026-10-30 00:22 1단계 빌드에서 실제로 났다(`Saved/Logs/ElmChronicles.log`, `UnrealEditor-ElmChronicles-0003.dll`, `UnrealEditor.modules`가 `-0003`을 가리킴) | 에디터를 끄고 `Build.bat` → 에디터를 다시 열고 테스트한다. Hot Reload 세션에서 한 PIE 결과는 믿지 않는다. 에디터를 켤 때 뜨는 "모듈을 다시 빌드할까요?"에서 빌드한 것은 모듈을 불러오기 전에 빌드하므로 괜찮다(DLL 이름에 `-000N`이 붙지 않는다) |
+| VS에서 빌드했는데 PIE에 바뀐 코드가 없음 | 에디터가 Live Coding으로 켜져 있으면 UBT가 `Unable to build while Live Coding is active`로 거부한다. VS는 출력 창에만 실패를 띄운다. 2026-10-30 11:08 2단계 빌드에서 실제로 났다 | 에디터를 끄고 빌드한다. 반영됐는지는 `Binaries/Win64/UnrealEditor-ElmChronicles*.dll` 수정 시간으로 확인한다 |
+| VS 빌드가 되게 하려고 에디터에서 Live Coding을 끄면 다음 VS 빌드가 Hot Reload로 들어감 | Live Coding이 꺼진 에디터는 UBT를 막지 않는다. UBT가 `-0001.dll`을 만들고 에디터가 그것을 불러 클래스를 바꿔 끼운다. 2026-10-30 11:37 3단계 빌드에서 실제로 났다(이번에는 에러 없음) | Live Coding은 켜 둔 채로 두고, 헤더를 바꾼 단계는 에디터를 끄고 빌드한다. Hot Reload 세션에서는 에셋을 저장하지 않고, 테스트는 에디터를 다시 연 뒤에 한다 |
+| Hot Reload 뒤 `WBP_PlayerHUD: A required widget binding "mMenuWidget" of type HOTRELOAD Menu Widget 0 was not found` | 같은 세션에서 Hot Reload를 여러 번 하면(2026-10-30 11:37 `-0001`, 12:11 `-0003`) `UMenuWidget`이 `HOTRELOAD_MenuWidget_0`으로 바뀐다. `WBP_PlayerHUD`의 `mMenuWidget`은 옛 클래스의 `WBP_Menu`라서 바인딩 타입이 맞지 않는다 | 그 세션에서 PIE를 하면 `mMenuWidget`이 비어 크래시할 수 있다. `WBP_PlayerHUD`를 저장하지 말고 에디터를 다시 연다. 에셋 자체는 바뀌지 않았으므로 다시 열면 정상이다 |
 
 ## 목표 구조
 
@@ -68,29 +71,29 @@ UPlayerHUDWidget (UI/Game/)
 UMenuWidget : UElmBaseWidget (UI/Game/MenuWidget.h, 새 파일)
    BindWidget: mMainBox, mResumeButton, mRecallButton, mSaveButton, mQuitButton,
                mQuitConfirmBox, mQuitYesButton, mQuitNoButton, mMessageText
-   Refresh()                  문구 지우기, 확인 상자 닫기, 귀환 / 저장 버튼 켜고 끄기
+   Refresh()                  문구 지우기, 확인 상자 닫기, 귀환 / 저장 버튼 켜고 끄기(살아 있고 전투 중이 아님)
    UFUNCTION On...Clicked     버튼마다 하나 (OnClicked는 Dynamic 델리게이트라 UFUNCTION이어야 AddDynamic 가능)
    SetMessage(FText) / ShowQuitConfirm(bool)
 
 AElmGameModeBase (GameModes/)
    mRecallLevel / mRecallStartTag            KyleHouse / "Room"
    bool IsInCombat(const APlayerCharacter*) const
-   bool CanRecall(const APlayerCharacter*) const   살아 있고 전투 중이 아님
-   void Recall(APlayerCharacter*)                  CanRecall 재확인 → TravelToLevel(Player, mRecallLevel, mRecallStartTag)
+   void Recall(APlayerCharacter*)                  살아 있고 전투 중이 아닌지 재확인 → TravelToLevel(Player, mRecallLevel, mRecallStartTag)
+   (CanRecall은 4단계에서 사용자가 빼고 그 조건을 Recall과 MenuWidget::Refresh에 직접 썼다)
 
 USaveSubsystem (Subsystem/)
    static constexpr const TCHAR* SaveSlotName = TEXT("ElmSave")
-   bool SaveToDisk(APlayerCharacter*)        mIsTraveling이면 false → WritePlayer → SaveGameToSlot
+   bool SaveToDisk(APlayerCharacter*)        이동 중 / 사망이면 false → WritePlayer → SaveGameToSlot
 ```
 
 ## 진행 상황
 
 | 단계 | 내용 | 상태 |
 | --- | --- | --- |
-| 1 | `IA_Menu`(B) + 메뉴 열기 / 닫기 + 일시정지 + 계속하기 | ◐ 코드·에셋 완료, 리뷰 통과(2026-10-30). 남은 것: 에디터를 끈 상태에서 `Build.bat` → 다시 열고 테스트 표 확인 |
-| 2 | 게임 종료(확인 상자) | ☐ |
-| 3 | 귀환(전투 중 / 사망 시 막기) | ☐ |
-| 4 | 저장하기 | ☐ |
+| 1 | `IA_Menu`(B) + 메뉴 열기 / 닫기 + 일시정지 + 계속하기 | ☑ 2026-10-30. 커밋 `d3b7deb`. 에디터 시작 시 전체 빌드한 세션(Hot Reload 아님)에서 사용자가 PIE로 확인 |
+| 2 | 게임 종료(확인 상자) | ☑ 2026-10-30. 12:20 PIE가 메뉴가 열린 채로 끝났다(게임 종료로 끝낸 것과 맞다). 사용자 확인 |
+| 3 | 귀환(전투 중 / 사망 시 막기) | ◐ 귀환 자체는 확인(12:21 Test → `KyleHouse#Room` → 포탈로 `Field#HeroHouse`). 남은 것: **Field에서 메뉴 열기** — 쫓기는 중 / 처치 직후 / 시야 밖 / 사망 직후의 귀환·저장 버튼 상태. 12:21 ~ 12:23 Field에서 공격 콤보는 많았지만 메뉴를 연 기록(`bShowMouseCursor Changed, False -> True`)과 `Player Death`가 없다 |
+| 4 | 저장하기 | ☑ 2026-10-30. `Recall` 조건 버그(`!IsValid` 누락)를 고친 뒤 12:16 에디터를 다시 열며 전체 빌드(Hot Reload 아님). 12:20:34 `Saved/SaveGames/ElmSave.sav`(2782바이트) 생성, 그 뒤 귀환·포탈 이동 정상. 전투 중 / 사망 시 버튼 끄기는 귀환과 같은 조건이라 3단계 남은 테스트로 함께 본다 |
 
 ### 1단계: 메뉴 열기 / 닫기 + 일시정지 + 계속하기
 
@@ -107,7 +110,7 @@ USaveSubsystem (Subsystem/)
 | 확인 | 기대 결과 |
 | --- | --- |
 | B | 화면이 어두워지고 가운데에 메뉴. 커서가 보인다. 몬스터 / NPC / 애니메이션이 멈춘다. "게임을 종료할까요?" 상자와 안내 문구는 보이지 않는다 |
-| 메뉴가 열린 채 WASD, 마우스 이동, I, E, Space | 아무 일도 없다 |
+| 메뉴가 열린 채 WASD, 마우스 이동, I, 상호작용 키(E → F로 바뀔 예정), Space | 아무 일도 없다 |
 | B 다시 | 메뉴가 닫히고 커서가 사라지며 게임이 다시 움직인다 |
 | 계속하기 클릭 | B와 같다 |
 | 계속하기 클릭 후 Space | 점프만 한다(메뉴가 다시 열리지 않는다) |
@@ -135,6 +138,10 @@ USaveSubsystem (Subsystem/)
 | 확인 상자를 연 채 B로 닫고 다시 B | 버튼 목록이 보인다(`Refresh`가 확인 상자를 닫음) |
 | 종료 | PIE가 끝난다(에디터는 그대로) |
 
+2026-10-30 리뷰 결과:
+- 코드(`MenuWidget.h/.cpp`)가 가이드와 같다. 사용자가 헤더의 선언을 `UFUNCTION()	void OnQuitClicked();`처럼 한 줄로 바꿨다. 11:07 UHT 실행이 이 헤더로 성공했으므로 문제없다.
+- 11:08 Visual Studio 빌드는 `Unable to build while Live Coding is active`로 실패했다(`%LOCALAPPDATA%\UnrealBuildTool\Log.txt`). DLL은 10:42 그대로이고, 그 뒤로 PIE도 없었다. 아직 2단계 코드로 테스트하지 않았다.
+
 ### 3단계: 귀환
 
 - 작업
@@ -147,11 +154,16 @@ USaveSubsystem (Subsystem/)
 | --- | --- |
 | Field(몬스터 없는 곳)에서 B → 귀환 | 메뉴가 닫히고 페이드 → KyleHouse `PlayerStart_House`에 선다. Output Log `TravelToLevel : .../KyleHouse#Room` 한 번 |
 | 귀환 전에 HP / MP / Gold / 가방을 바꿔 둠 | KyleHouse에서 그대로 |
-| 몬스터가 쫓아오는 중에 B | 귀환 버튼이 꺼져 있고 "전투 중에는 귀환할 수 없습니다." |
+| 몬스터가 쫓아오는 중에 B | 귀환 버튼이 꺼져 있고 "전투 중에는 할 수 없습니다." |
 | 몬스터를 처치한 직후(사망 애니메이션 중) B | 다른 적이 없으면 귀환 버튼이 켜져 있다 |
 | 몬스터 시야 밖으로 도망친 뒤 B | 귀환 버튼이 켜져 있다(Target을 놓친 뒤) |
 | 죽은 직후 B | 귀환 버튼이 꺼져 있다. 메뉴를 닫으면 병원으로 이동한다 |
 | KyleHouse 안에서 귀환 | 같은 자리로 다시 이동(막지 않는다) |
+
+2026-10-30 리뷰 결과:
+- 코드(`ElmGameModeBase.h/.cpp`, `MenuWidget.h/.cpp`)가 가이드와 같다.
+- 빌드가 Hot Reload로 들어갔다. 11:10 에디터에서 Live Coding을 껐고(`LogLiveCoding: Console will be hidden ...`), 11:37 VS 빌드가 `-0001.dll`을 만들어 `Starting Hot-Reload from IDE`가 됐다. 이번에는 에러가 없었다(`ElmGameModeBase`, `MenuWidget` 다시 만듦, `WBP_Menu` 다시 컴파일, 함수 5개 등록).
+- 그 세션의 PIE는 한 번(11:38:50 ~ 11:39:34, Test 맵)이다. 공격 한 번 → 메뉴 열기 → 귀환 → KyleHouse(LoadMap 0.73초). 몬스터 공격, 플레이어 사망 로그는 없다.
 
 ### 4단계: 저장하기
 
@@ -167,6 +179,12 @@ USaveSubsystem (Subsystem/)
 | 메뉴를 닫았다 다시 열기 | 문구가 지워져 있다 |
 | 저장 후 포탈 이동 | 평소처럼 이동, 가방 / 능력치 유지(메모를 덮어쓴 영향 없음) |
 | 죽은 직후 B | 저장하기 버튼이 꺼져 있다 |
+| 몬스터가 쫓아오는 중에 B | 저장하기 버튼도 꺼져 있다(사용자 추가 규칙) |
+
+2026-10-30 리뷰 결과:
+- 사용자가 가이드와 다르게 바꾼 것: 전투 중 저장 금지. `CanRecall`을 빼고 `Refresh`에서 `IsButtonEnabled` 하나로 귀환 / 저장 버튼을 함께 켜고 끈다. 문구는 "전투 중에는 할 수 없습니다."(NSLOCTEXT 키는 `RecallInCombat` 그대로).
+- **버그**: `AElmGameModeBase::Recall`의 조건이 `if (IsValid(Player) || Player->IsDead() || IsInCombat(Player)) return;`이다. `!`가 빠져서 살아 있는 플레이어면 늘 그냥 돌아가고(귀환을 눌러도 메뉴만 닫힘), Player가 null이면 `Player->IsDead()`에서 크래시한다. `!IsValid(Player)`로 고쳐야 한다.
+- 12:04 빌드는 `OnSaveClicked` 정의가 없어 링크 에러(`LNK2019`)로 실패했고, 12:11 빌드가 Hot Reload(`-0003.dll`)로 들어갔다. 이때 `WBP_PlayerHUD` 바인딩 에러가 났다([주의](#주의)). 사용자가 "4단계 완료"라고 한 12:12에는 그 뒤 PIE가 없었고 `Saved/SaveGames`도 없었다.
 
 ## 에셋 작업
 
@@ -181,11 +199,12 @@ USaveSubsystem (Subsystem/)
 
 - 코드와 에셋은 사용자가 직접 입력한다. Claude는 단계마다 그대로 입력할 수 있는 전체 코드, 정확한 위치(파일, 함수), WBP 위젯 트리, 테스트 표, 초보자용 설명을 준다. 2026-10-29 Claude가 unreal-mcp로 에셋을 만들기 시작했다가 사용자가 중단하고 "그냥 제가 할게요. 가이드만 해주세요"라고 했다. Claude는 사용자가 "직접 해 줘"라고 할 때만 코드나 에셋을 고친다.
 - 루프: 단계 안내 → 사용자가 입력, 빌드, PIE 테스트 → "N단계 완료" → Claude가 `git diff`와 파일로 리뷰 → 통과하면 이 문서의 상태를 ☑로 바꾸고 다음 단계.
-- 이 문서와 CLAUDE.md의 갱신은 사용자에게 묻지 않고 Claude가 한다.
+- md 파일(이 문서, CLAUDE.md, 다른 Docs)의 수정은 사용자에게 묻지 않고 Claude가 한다(2026-10-30 사용자 지시). 고친 내용은 답에서 짧게 알린다.
 - 헤더나 `UPROPERTY` / `UCLASS` / `UFUNCTION`이 바뀌는 단계는 "에디터를 끄고 빌드"를 안내한다(1 ~ 4단계 모두 해당).
 - 코드 주석은 한글 "~한다" 체로, "왜 이렇게 하는지"를 적는다.
 
 ## 이후 작업 (이 계획의 범위 밖)
 
 - 불러오기 / 이어하기(타이틀 화면). 지금 저장 파일에는 맵과 위치가 없다. `UElmSaveGame`에 맵 경로와 위치(또는 PlayerStart 태그)를 추가하고 `SaveVersion`을 올려야 한다. PIE에서는 맵 이름에 `UEDPIE_0_` 접두사가 붙으므로 저장할 때 뗀다.
-- 끝나면 CLAUDE.md "입력 / 상호작용 / UI"에 메뉴(일시정지, `IA_Menu`의 Trigger when Paused, 버튼 Is Focusable 해제)를 옮긴다.
+- CLAUDE.md "입력 / 상호작용 / UI"에 메뉴(일시정지, `IA_Menu`의 Trigger when Paused, 타이머는 메뉴를 닫은 뒤, 버튼 Is Focusable 해제)를, "레벨 이동 / 메모"에 디스크 저장을 옮겼다(2026-10-30).
+- `SaveSubsystem.h` 클래스 주석의 "나중에 디스크 저장도 ... 넘기면 된다"는 `SaveToDisk`가 생겨서 낡았다. 다음에 그 파일을 고칠 때 함께 고친다.

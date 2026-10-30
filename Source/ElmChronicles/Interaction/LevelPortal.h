@@ -31,7 +31,7 @@ protected:
 	// 비우거나 못 찾으면 태그 없는 PlayerStart에 선다(AElmGameModeBase::ChoosePlayerStart).
 	UPROPERTY(EditAnywhere, Category = "Portal") FName mTargetStartTag;
 
-	// 안내 문구. 예: "상점 들어가기" → 화면에는 "[E] 상점 들어가기"
+	// 안내 문구. 예: "상점 들어가기" → 화면에는 "[F] 상점 들어가기"
 	UPROPERTY(EditAnywhere, Category = "Portal") FText mInteractText;
 
 public:

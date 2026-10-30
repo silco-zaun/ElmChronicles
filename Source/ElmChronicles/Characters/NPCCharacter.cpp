@@ -9,6 +9,7 @@
 #include "../AI/ElmAIController.h"
 #include "../Data/Tables/DialogueTableRow.h"
 #include "../ElmCollisionChannels.h"
+#include "../Player/DialogueComponent.h"
 #include "../Player/ElmPlayerController.h"
 #include "../UI/Game/PlayerHUDWidget.h"
 #include "PlayerCharacter.h"
@@ -105,16 +106,11 @@ bool ANPCCharacter::CanInteract(const APlayerCharacter* Player) const
 
 void ANPCCharacter::Interact(APlayerCharacter* Player)
 {
-	UAssetSubsystem* AssetSubsystem = GetGameInstance()->GetSubsystem<UAssetSubsystem>();
+	// 대화 진행(대화창, 입력 바꾸기, 다음 줄)은 플레이어 컨트롤러의 대화 컴포넌트가 맡는다. NPC는 어느 행에서 시작할지만 알려 준다.
 	AElmPlayerController* PlayerController = Player->GetController<AElmPlayerController>();
 
-	if (!AssetSubsystem || !IsValid(PlayerController) || !PlayerController->GetPlayerHUDWidget())
-		return;
-
-	const FDialogueTableRow* Line = AssetSubsystem->FindRow<FDialogueTableRow>(mDialogueRow);
-
-	if (Line)
-		PlayerController->GetPlayerHUDWidget()->SetDialogueLine(Line->Speaker, Line->Text);
+	if (IsValid(PlayerController))
+		PlayerController->GetDialogue()->StartDialogue(this, mDialogueRow);
 }
 
 void ANPCCharacter::Revive()

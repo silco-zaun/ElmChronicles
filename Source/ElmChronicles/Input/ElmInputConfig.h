@@ -32,4 +32,8 @@ protected:
 
 public:
 	TObjectPtr<UInputAction> FindInputAction(const FString& Name) const;
+
+	// Name 액션에 지금 매핑된 키의 화면 글자("F"). 키를 아직 모르면 빈 FText를 돌려준다.
+	// CDO는 모든 플레이어가 함께 쓰므로, 누구의 키인지는 LocalPlayer로 받는다.
+	FText FindMappedKeyText(const ULocalPlayer* LocalPlayer, const FString& Name) const;
 };

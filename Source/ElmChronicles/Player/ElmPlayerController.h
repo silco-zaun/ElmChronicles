@@ -24,19 +24,20 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<class UPlayerHUDWidget> mPlayerHUDWidget;
 
-	FString mPlayerName;
-	// 지금 E를 누르면 상호작용할 대상. 안내 문구도 이 대상 기준으로 띄운다.
-	// 대상이 사라지면 자동으로 nullptr이 되도록 약한 포인터로 들고 있는다.
-	TWeakObjectPtr<AActor> mInteractTarget;
-	FTimerHandle mInteractTimer;
+	// 주변 상호작용 대상 찾기, 안내 문구, F 키. 대상이 NPC인지 포탈인지는 이 컴포넌트도 모른다.
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<class UInteractionComponent> mInteraction;
 
-	// 플레이어 중심에서 이 반지름(cm) 안에 캡슐이 걸친 대상을 찾는다.
-	static constexpr float InteractRadius = 200.f;
-	// 대상 검색 주기(초). 매 프레임 할 필요는 없다.
-	static constexpr float InteractScanInterval = 0.1f;
+	// NPC와의 대화 진행. 대화창, 대화 중 입력 교체, 다음 줄 넘기기.
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<class UDialogueComponent> mDialogue;
+
+	FString mPlayerName;
 
 public:
 	class UPlayerHUDWidget* GetPlayerHUDWidget() const { return mPlayerHUDWidget; }
+	class UInteractionComponent* GetInteraction() const { return mInteraction; }
+	class UDialogueComponent* GetDialogue() const { return mDialogue; }
 	const FString& GetPlayerName() const { return mPlayerName; }
 
 public:
@@ -59,7 +60,4 @@ public:
 
 private:
 	void RefreshInputMode();
-	// 주변의 상호작용 대상을 찾아 mInteractTarget과 안내 문구를 갱신한다. (타이머로 0.1초마다)
-	void UpdateInteractTarget();
-	void InteractKey();
 };

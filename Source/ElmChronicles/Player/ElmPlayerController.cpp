@@ -2,16 +2,15 @@
 
 
 #include "ElmPlayerController.h"
-#include "../Characters/PlayerCharacter.h"
-#include "../ElmCollisionChannels.h"
+#include "DialogueComponent.h"
+#include "InteractionComponent.h"
 #include "../Input/DefaultInput.h"
-#include "../Interaction/Interactable.h"
+#include "../Input/DialogueInput.h"
 #include "../UI/Game/PlayerHUDWidget.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
-#include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 AElmPlayerController::AElmPlayerController()
 {
@@ -19,8 +18,10 @@ AElmPlayerController::AElmPlayerController()
 
 	PrimaryActorTick.bCanEverTick = true;
 
-	// 마우스 커서를 보이게 한다.
-	//bShowMouseCursor = true;
+	// 상호작용(주변 대상 찾기, 안내 문구, F 키)은 컴포넌트가 맡는다.
+	mInteraction = CreateDefaultSubobject<UInteractionComponent>(TEXT("InteractionComponent"));
+	// 대화(대화창, 대화 중 입력, 다음 줄)도 컴포넌트가 맡는다.
+	mDialogue = CreateDefaultSubobject<UDialogueComponent>(TEXT("DialogueComponent"));
 
 	static ConstructorHelpers::FClassFinder<UPlayerHUDWidget>
 		PlayerHUDWidgetClass(TEXT("/Script/UMGEditor.WidgetBlueprint'/Game/UI/Game/WBP_PlayerHUD.WBP_PlayerHUD_C'"));
@@ -52,13 +53,6 @@ void AElmPlayerController::BeginPlay()
 			// 시작할 때는 인벤토리를 닫은 상태 + 게임 전용 입력으로 맞춘다.
 			SetInventoryOpen(false);
 		}
-	}
-
-	// 상호작용 대상 검색. 안내 문구를 띄울 화면이 있는 로컬 플레이어만 한다.
-	if (IsLocalController())
-	{
-		GetWorldTimerManager().SetTimer(mInteractTimer, this,
-			&AElmPlayerController::UpdateInteractTarget, InteractScanInterval, true);
 	}
 }
 
@@ -110,16 +104,22 @@ void AElmPlayerController::SetupInputComponent()
 		return;
 
 	const UDefaultInput* DefaultInputCDO = GetDefault<UDefaultInput>();
+	const UDialogueInput* DialogueInputCDO = GetDefault<UDialogueInput>();
 
 	// Enhanced Input은 인자 없는 함수도 바인딩할 수 있다.
 	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Inventory")),
 		ETriggerEvent::Started, this, &AElmPlayerController::ToggleInventory);
 
+	// 핸들러는 컨트롤러가 아니라 컴포넌트의 함수다. TObjectPtr는 템플릿이 타입을 읽지 못하므로 .Get()으로 넘긴다.
 	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Interact")),
-		ETriggerEvent::Started, this, &AElmPlayerController::InteractKey);
+		ETriggerEvent::Started, mInteraction.Get(), &UInteractionComponent::InteractKey);
 
 	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Menu")),
 		ETriggerEvent::Started, this, &AElmPlayerController::ToggleMenu);
+
+	// IMC_Dialogue에만 매핑되어 있으므로 대화 중에만 들어온다. 대화용 액션은 UDialogueInput이 들고 있다.
+	EnhancedInputComponent->BindAction(DialogueInputCDO->FindInputAction(TEXT("DialogueNext")),
+		ETriggerEvent::Started, mDialogue.Get(), &UDialogueComponent::AdvanceDialogue);
 }
 
 void AElmPlayerController::ToggleInventory()
@@ -174,66 +174,4 @@ void AElmPlayerController::RefreshInputMode()
 	}
 
 	SetShowMouseCursor(UIOpen);
-}
-
-void AElmPlayerController::UpdateInteractTarget()
-{
-	// 지역 변수 이름을 Player로 지으면 APlayerController::Player(UPlayer*) 멤버를 가려서 C4458 오류가 난다.
-	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
-	AActor* NewTarget = nullptr;
-
-	if (IsValid(PlayerCharacter) && !PlayerCharacter->IsDead())
-	{
-		// Interaction 채널에 응답하는 컴포넌트(NPC 캡슐)만 걸린다. 벽, 몬스터, 플레이어는 Ignore라 걸리지 않는다.
-		// (Lyra의 GrantNearbyInteraction도 플레이어 주변 구를 타이머로 Overlap해서 찾는다)
-		TArray<FOverlapResult> Overlaps;
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(Interact), false, PlayerCharacter);
-
-		GetWorld()->OverlapMultiByChannel(Overlaps, PlayerCharacter->GetActorLocation(), FQuat::Identity,
-			ElmChannels::Interaction, FCollisionShape::MakeSphere(InteractRadius), Params);
-
-		double NearestDistSq = TNumericLimits<double>::Max();
-
-		for (const FOverlapResult& Overlap : Overlaps)
-		{
-			AActor* Actor = Overlap.GetActor();
-			// 인터페이스를 구현한 액터만 Cast가 성공한다. (NPC인지 상자인지는 몰라도 된다)
-			IInteractable* Interactable = Cast<IInteractable>(Actor);
-
-			if (!Interactable || !Interactable->CanInteract(PlayerCharacter))
-				continue;
-
-			// 여러 명이 걸리면 가장 가까운 대상
-			const double DistSq = FVector::DistSquared(PlayerCharacter->GetActorLocation(), Actor->GetActorLocation());
-
-			if (DistSq < NearestDistSq)
-			{
-				NearestDistSq = DistSq;
-				NewTarget = Actor;
-			}
-		}
-	}
-
-	mInteractTarget = NewTarget;
-
-	// 대상이 사라지거나 문구가 바뀌어도 바로 반영되도록 매번 갱신한다. (0.1초마다라 부담이 없다)
-	if (mPlayerHUDWidget)
-	{
-		IInteractable* Interactable = Cast<IInteractable>(NewTarget);
-		mPlayerHUDWidget->SetInteractPrompt(Interactable ? Interactable->GetInteractText() : FText::GetEmpty());
-	}
-}
-
-void AElmPlayerController::InteractKey()
-{
-	APlayerCharacter* PlayerCharacter = GetPawn<APlayerCharacter>();
-	IInteractable* Interactable = Cast<IInteractable>(mInteractTarget.Get());
-
-	// 죽은 뒤 첫 검색(0.1초) 전에는 mInteractTarget이 남아 있다.
-	// 죽은 채로 포탈을 타면 HP 0이 메모에 적힌다.
-	if (!IsValid(PlayerCharacter) || PlayerCharacter->IsDead() || !Interactable ||
-		!Interactable->CanInteract(PlayerCharacter))
-		return;
-
-	Interactable->Interact(PlayerCharacter);
 }

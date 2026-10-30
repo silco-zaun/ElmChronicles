@@ -65,6 +65,21 @@ void USaveSubsystem::TravelToLevel(APlayerCharacter* Player, const TSoftObjectPt
 		FTimerDelegate::CreateUObject(this, &USaveSubsystem::OpenLevelURL, URL), FadeTime, false);
 }
 
+bool USaveSubsystem::SaveToDisk(APlayerCharacter* Player)
+{
+	// 이동 중에는 메모에 "문을 나선 순간"의 상태가 적혀 있으므로 지금 상태로 덮어쓰지 않는다.
+	// 죽은 상태도 저장하지 않는다. HP 0인 메모는 InitAttributes가 "죽어서 병원에 왔다"로 읽고 HP를 가득 채운다.
+	if (mIsTraveling || !IsValid(Player) || Player->IsDead())
+		return false;
+
+	// 포탈 이동과 같은 메모를 그대로 디스크에 쓴다.
+	// 메모는 새 레벨이 초기화할 때만 읽으므로 지금 덮어써도 이번 레벨에는 영향이 없다.
+	WritePlayer(Player);
+
+	// 마지막 인자는 사용자 번호(콘솔에서 계정을 구분하는 용도). PC 싱글플레이는 0이다.
+	return UGameplayStatics::SaveGameToSlot(mSaveGame, SaveSlotName, 0);
+}
+
 void USaveSubsystem::OpenLevelURL(FString URL)
 {
 	// 0.5초 사이에 캐릭터가 사라졌을 수도 있으므로 World Context는 캐릭터 대신 GameInstance로 넘긴다.

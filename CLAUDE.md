@@ -9,15 +9,17 @@ Unreal Engine 5.8 C++ 싱글플레이 액션 RPG. 런타임 모듈은 `ElmChroni
 ## 빌드 / 실행
 
 ```powershell
+# 저장소 루트에서 실행한다. (PC마다 저장소 위치가 달라서 절대 경로를 적지 않는다)
 # 에디터 타깃 빌드 (UBT가 Source 폴더를 직접 훑으므로 새 .h/.cpp도 .sln 재생성 없이 컴파일된다)
-& "C:\UE_5.8\Engine\Build\BatchFiles\Build.bat" ElmChroniclesEditor Win64 Development -Project="C:\Tadi\Work\ElmChronicles\ElmChronicles.uproject" -WaitMutex
+& "C:\UE_5.8\Engine\Build\BatchFiles\Build.bat" ElmChroniclesEditor Win64 Development -Project="$PWD\ElmChronicles.uproject" -WaitMutex
 
 # 에디터 실행
-& "C:\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:\Tadi\Work\ElmChronicles\ElmChronicles.uproject"
+& "C:\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "$PWD\ElmChronicles.uproject"
 ```
 
-- 에디터가 Live Coding으로 열려 있으면 UBT 빌드가 거부된다. 에디터를 닫고 빌드하거나, 에디터에서 Ctrl+Alt+F11로 Live Coding 컴파일한다. `UPROPERTY`/`UCLASS` 구조가 바뀐 헤더 변경은 에디터를 재시작해야 안전하다.
-- Live Coding이 시작되지 않은 채 에디터가 열려 있으면 UBT가 빌드를 막지 않고 `UnrealEditor-ElmChronicles-0001.dll`을 만들며, 에디터가 Hot Reload를 시도한다. 클래스를 지운 변경에서는 이 Hot Reload 중에 에디터가 크래시했다(2026-10-27). IDE 빌드는 항상 에디터를 끄고 한다.
+- 에디터가 Live Coding으로 열려 있으면 UBT 빌드가 거부된다(Visual Studio 빌드도 같다). 에디터를 닫고 빌드하거나, 에디터에서 Ctrl+Alt+F11로 Live Coding 컴파일한다. `UPROPERTY`/`UCLASS` 구조가 바뀐 헤더 변경은 에디터를 재시작해야 안전하다.
+  - VS에서는 거부 메시지(`Unable to build while Live Coding is active`)가 출력 창에만 나와서 빌드된 줄 알기 쉽다(2026-10-30). 반영됐는지는 `Binaries/Win64/UnrealEditor-ElmChronicles*.dll` 수정 시간이나 `%LOCALAPPDATA%\UnrealBuildTool\Log.txt`의 `Result:`로 확인한다.
+- Live Coding이 시작되지 않았거나 에디터에서 Live Coding을 끈 채(2026-10-30) 에디터가 열려 있으면 UBT가 빌드를 막지 않고 `UnrealEditor-ElmChronicles-0001.dll`을 만들며, 에디터가 Hot Reload를 시도한다. 클래스를 지운 변경에서는 이 Hot Reload 중에 에디터가 크래시했다(2026-10-27). IDE 빌드는 항상 에디터를 끄고 한다.
 - `.sln`/`.slnx`는 gitignore 대상(엔진이 생성)이다.
 - 자동화 테스트나 린트 설정은 없다. 검증은 PIE로 한다. 시작 맵은 `/Game/Maps/Test`다(`DefaultEngine.ini`).
 - `.mcp.json`의 `unreal-mcp`(`http://127.0.0.1:8000/mcp`)는 `ModelContextProtocol` 플러그인이 띄우는 서버라서 에디터가 실행 중일 때만 연결된다.
@@ -81,6 +83,10 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 아군/적 구분은 **충돌 채널이 아니라 팀**이 한다. 모든 캐릭터 캡슐은 `Pawn` 프로필이고, 공격 판정은 `ElmChannels::MakeCharacterObjectQuery()`(ECC_Pawn)로 찾은 뒤 `IsHostile`로 거른다.
 - 팀 관계는 `AI/TeamTypes.h`의 `SolveTeamAttitude` 관계표 하나가 정한다. 모듈 `StartupModule`에서 `FGenericTeamId::SetAttitudeSolver`로 등록되며, AI 시야와 공격 판정이 모두 이것을 거친다.
 - 커스텀 채널은 `Interaction`(ECC_GameTraceChannel1, 기본 Ignore) 하나다. 채널을 추가하면 `ElmCollisionChannels.h`를 `DefaultEngine.ini` 순서와 맞춘다. `DefaultEngine.ini`의 `EditProfiles`에 남은 Player/Monster/PlayerAttack/MonsterAttack 채널은 예전 구조의 잔재다.
+- KayKit 메시는 임포트 때 만들어진 단순 콜리전이 메시 전체를 덮는 볼록 껍질(convex hull) 하나다. 그래서 문틀이나 성문처럼 구멍이 있는 메시는 구멍까지 막는다. 캐릭터 이동은 단순 콜리전을 쓰므로, 지나가야 하는 메시는 Collision Complexity를 `Use Complex Collision As Simple`로 바꾼다.
+  - 2026-10-30에 바꾼 메시: `Dungeon/Assets/wall_doorway_scaffold`(Hospital / KyleHouse / Shop / Tavern, KyleHouse 방에서 나갈 수 없던 버그), `MedievalHexagon/.../Neutral/wall_straight_gate`·`wall_corner_A_gate`(Field의 `Gate_*` 5개, 성문을 지나갈 수 없던 버그).
+  - `wall_doorway`(Palace / VoidRaindungeon)는 아직 그대로다. 실내 맵 출구 문틀은 그 안에 놓인 문 메시(`*_door`, 볼록 껍질 콜리전)가 막는다.
+  - 확인: unreal-mcp `trace_world`는 막힌 구멍도 그냥 통과하므로 쓸 수 없다. 맵을 에디터에 열고 Simulate를 켠 채 `find_actors`(bounds + `ObjectTypeQuery1`) 겹침 검사를 한다(실제 PIE에서 레벨 이동한 뒤에는 `find_actors`가 PIE 월드를 보지 않는다). 겹침 검사는 삼각형 콜리전의 표면만 잡으므로, 상자가 벽 표면을 가로지르게 둔다.
 
 ### AI
 
@@ -100,13 +106,19 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
   - 페이드 아웃 / 인과 중복 이동 방지(`mIsTraveling` + 입력 끄기)도 `USaveSubsystem`이 맡는다. 도착은 `PostLoadMapWithWorld`로 알고, 로딩 직후 큰 DeltaTime 때문에 검은 화면을 0.5초 유지한 뒤 밝힌다. 카메라 페이드라 HUD(UMG)는 가려지지 않는다.
   - PIE 로그의 `UEDPIE_0_` 접두사 경로는 정상이다.
 - 사망: `APlayerCharacter::OnKilledBy` → `AElmGameModeBase::PlayerKilled` → 2초 뒤 `TravelToLevel(Hospital, "Respawn")`. 메모의 HP가 0이면 죽어서 온 것으로 보고 `InitAttributes`가 HP / MP를 가득 찬 채로 둔다(부활 코드는 따로 없다). 사망 페널티는 없다.
-- 결정 이유와 함정 기록은 [Docs/LevelTravel_Progress.md](Docs/LevelTravel_Progress.md).
+- 디스크 저장: `USaveSubsystem::SaveToDisk` = `WritePlayer` + `SaveGameToSlot(mSaveGame, "ElmSave", 0)`(`Saved/SaveGames/ElmSave.sav`). 메뉴 "저장하기"만 부른다. 이동 중이거나 죽었으면 쓰지 않는다. 불러오기는 아직 없다(메모에 맵 / 위치가 없다).
+- 결정 이유와 함정 기록은 끝나서 지운 진행 문서에 있다: `git show d3b7deb:Docs/LevelTravel_Progress.md`.
 
 ### 입력 / 상호작용 / UI
 
-- `UDefaultInput`의 CDO가 `IMC_Default`와 `IA_*`를 생성자에서 경로로 찾아 `FindInputAction("Name")`으로 제공한다. 입력을 추가하려면 `Content/Input`에 IA를 만들고 → `DefaultInput` 생성자에 등록하고 → 캐릭터 동작은 `APlayerCharacter::SetupPlayerInputComponent`, UI/상호작용은 `AElmPlayerController::SetupInputComponent`에서 바인딩한다.
-- 상호작용: `IInteractable`(C++ 전용 인터페이스)을 구현하고 해당 컴포넌트가 `Interaction` 채널에 Overlap으로 응답하면 된다. `AElmPlayerController`가 0.1초마다 구 Overlap으로 가장 가까운 대상을 찾아 HUD에 `[E] ...` 문구를 띄운다.
+- 입력 설정은 `UElmInputConfig` 자식 하나가 IMC 하나와 그 IA들을 생성자에서 경로로 찾아 `FindInputAction("Name")`으로 제공한다: `UDefaultInput`(`Content/Input/Default/`, `IMC_Default`), `UDialogueInput`(`Content/Input/Dialogue/`, `IMC_Dialogue`, 대화 중에만 `IMC_Default` 대신 켠다). 입력을 추가하려면 해당 폴더에 IA를 만들고 → 그 입력 설정 생성자에 등록하고 → 캐릭터 동작은 `APlayerCharacter::SetupPlayerInputComponent`, UI/상호작용은 `AElmPlayerController::SetupInputComponent`에서 바인딩한다. 핸들러가 컨트롤러 컴포넌트의 함수여도 바인딩은 컨트롤러에서 한다(`mInteraction.Get()`처럼 원시 포인터로 넘긴다).
+- 상호작용: `IInteractable`(C++ 전용 인터페이스)을 구현하고 해당 컴포넌트가 `Interaction` 채널에 Overlap으로 응답하면 된다. `UInteractionComponent`(`Player/`, `AElmPlayerController`에 붙음)가 0.1초마다 구 Overlap으로 가장 가까운 대상을 찾아 HUD에 `[F] ...` 문구를 띄운다. 키 글자는 `UElmInputConfig::FindMappedKeyText`가 지금 켜진 IMC에서 물어 온다. 다른 기능이 상호작용을 막을 때는 `SetBlocked(true / false)`를 부른다(상호작용 컴포넌트는 누가 막는지 모른다).
+- 플레이어 컨트롤러에 기능을 더할 때는 `Player/`의 ActorComponent로 만들어 컨트롤러에 붙이고, 컨트롤러에는 생성과 키 바인딩만 둔다(2026-10-30 상호작용 / 대화를 이렇게 뺐다). 컴포넌트 `BeginPlay`는 컨트롤러 `BeginPlay`의 `Super` 안에서 불려 아직 HUD가 없다.
 - HUD: `AElmPlayerController`가 `WBP_PlayerHUD`(`UPlayerHUDWidget`)를 만든다. C++ 위젯 변수는 `meta = (BindWidget)`이며 WBP의 위젯 이름과 같아야 한다. 상태바 같은 위젯은 `GetOwningPlayerState()`의 ASC Attribute 델리게이트를 구독해서 갱신한다. 창을 열고 닫을 때 입력 모드/커서는 `RefreshInputMode`가 맞춘다.
+- 메뉴(B, `IA_Menu`): `AElmPlayerController::SetMenuOpen`이 `WBP_PlayerHUD`의 자식 `mMenuWidget`(`UMenuWidget` / `WBP_Menu`)을 켜고 `SetPause`로 게임을 멈춘다. 버튼은 일을 맡은 곳에 부탁만 한다: 귀환 → `AElmGameModeBase::Recall`(KyleHouse `Room`), 저장 → `USaveSubsystem::SaveToDisk`, 종료 → `QuitGame`(확인 상자). 귀환 / 저장은 살아 있고 전투 중이 아닐 때만 켠다(`AElmGameModeBase::IsInCombat` = 살아 있는 AI 중 Blackboard `Target`이 이 플레이어인 것이 있음).
+  - 일시정지 중에는 **Trigger when Paused**를 켠 IA만 발동한다. `IA_Menu`만 켜 두어서 메뉴가 열린 동안 이동 / 공격 / I / F가 막힌다. 입력 모드는 `FInputModeGameAndUI`다(UIOnly면 B가 컨트롤러에 오지 않아 메뉴를 닫을 수 없다).
+  - 일시정지 중에는 월드 타이머가 돌지 않는다. 타이머를 쓰는 일(`TravelToLevel`의 페이드)은 메뉴를 닫은 뒤에 부른다(`UMenuWidget::OnRecallClicked`).
+  - 메뉴 버튼은 WBP에서 **Is Focusable**을 끈다. 켜 두면 클릭한 버튼이 포커스를 가져가 Space / Enter가 그 버튼을 다시 누른다.
 
 ## 코드 컨벤션
 

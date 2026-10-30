@@ -57,8 +57,12 @@ public:
 
 private:
 	// 버튼의 OnClicked는 Dynamic 델리게이트라서 UFUNCTION 함수만 연결할 수 있다.
-	UFUNCTION()
-	void OnResumeClicked();
+	UFUNCTION()	void OnResumeClicked();
+	UFUNCTION()	void OnRecallClicked();
+	UFUNCTION()	void OnSaveClicked();
+	UFUNCTION()	void OnQuitClicked();
+	UFUNCTION()	void OnQuitYesClicked();
+	UFUNCTION()	void OnQuitNoClicked();
 
 	void SetMessage(const FText& Message);
 	void ShowQuitConfirm(bool Show);

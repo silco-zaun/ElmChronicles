@@ -31,6 +31,8 @@ protected:
 	static constexpr float FadeTime = 0.5f;
 	// 도착한 뒤 밝히기 전에 검은 화면을 유지하는 시간(초). 이유는 OnPostLoadMap 주석.
 	static constexpr float ArriveHoldTime = 0.5f;
+	// 디스크 저장 파일 이름. Saved/SaveGames/ElmSave.sav가 된다. 슬롯은 하나만 쓴다.
+	static constexpr const TCHAR* SaveSlotName = TEXT("ElmSave");
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -41,6 +43,9 @@ public:
 
 	// 지금 플레이어 상태를 메모에 적고, 화면을 어둡게 한 뒤 Level을 연다. StartTag는 도착 레벨 PlayerStart의 Player Start Tag.
 	void TravelToLevel(APlayerCharacter* Player, const TSoftObjectPtr<UWorld>& Level, FName StartTag);
+	// 지금 플레이어 상태를 메모에 적고, 메모를 디스크(SaveSlotName)에 쓴다. 메뉴 "저장하기"가 부른다.
+	// 이동 중이거나 플레이어가 죽어 있으면 쓰지 않고 false를 돌려준다.
+	bool SaveToDisk(APlayerCharacter* Player);
 
 private:
 	void WritePlayer(APlayerCharacter* Player);

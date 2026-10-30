@@ -2,6 +2,7 @@
 
 
 #include "ElmGameModeBase.h"
+#include "../AI/ElmAIController.h"
 #include "../Characters/PlayerCharacter.h"
 #include "../Player/ElmPlayerController.h"
 #include "../Player/ElmPlayerState.h"
@@ -21,6 +22,8 @@ AElmGameModeBase::AElmGameModeBase()
 	// 맵은 Soft 경로로만 들고 있다. (미리 불러 두지 않는다. 여는 것은 OpenLevel이 한다)
 	mRespawnLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/Maps/ElmKingdom/Hospital.Hospital")));
 	mRespawnStartTag = TEXT("Respawn");
+	mRecallLevel = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/Maps/ElmKingdom/KyleHouse.KyleHouse")));
+	mRecallStartTag = TEXT("Room");
 }
 
 AActor* AElmGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
@@ -66,4 +69,35 @@ void AElmGameModeBase::RespawnPlayer(TWeakObjectPtr<APlayerCharacter> Player)
 	// 메모에는 HP 0이 적히고, 병원에서 InitAttributes가 그것을 보고 HP / MP를 가득 채운 채로 둔다.
 	if (USaveSubsystem* SaveSubsystem = GetGameInstance()->GetSubsystem<USaveSubsystem>())
 		SaveSubsystem->TravelToLevel(Player.Get(), mRespawnLevel, mRespawnStartTag);
+}
+
+bool AElmGameModeBase::IsInCombat(const APlayerCharacter* Player) const
+{
+	if (!IsValid(Player))
+		return false;
+
+	for (TActorIterator<AElmAIController> It(GetWorld()); It; ++It)
+	{
+		// 쓰러진 AI는 BT만 멈추고 Blackboard의 Target을 지우지 않는다. (AAICharacter::OnKilledBy)
+		// 몬스터의 사망 애니메이션 동안, 필수 NPC가 쓰러져 있는 동안 Target이 남아 있으므로 건너뛴다.
+		const APawn* AIPawn = It->GetPawn();
+		if (!IsValid(AIPawn) || AElmAIController::IsDeadTarget(AIPawn))
+			continue;
+
+		if (It->GetTarget() == Player)
+			return true;
+	}
+
+	return false;
+}
+
+void AElmGameModeBase::Recall(APlayerCharacter* Player)
+{
+	// 규칙을 지키는 곳은 GameMode다. 부르는 쪽(메뉴)이 확인을 빠뜨려도 막히도록 여기서 한 번 더 본다.
+	if (!IsValid(Player) || Player->IsDead() || IsInCombat(Player))
+		return;
+
+	// 화면 전환, 메모 적기, 중복 이동 방지는 사망 후 병원 이동과 같은 길(TravelToLevel)을 쓴다.
+	if (USaveSubsystem* SaveSubsystem = GetGameInstance()->GetSubsystem<USaveSubsystem>())
+		SaveSubsystem->TravelToLevel(Player, mRecallLevel, mRecallStartTag);
 }

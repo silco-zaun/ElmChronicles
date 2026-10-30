@@ -7,6 +7,7 @@
 #include "ItemInfoWidget.h"
 #include "MenuWidget.h"
 #include "StatusBarWidget.h"
+#include "../../Input/DefaultInput.h"
 #include "../../Item/ItemObject.h"
 
 UPlayerHUDWidget::UPlayerHUDWidget(const FObjectInitializer& ObjectInitializer) :
@@ -114,8 +115,15 @@ void UPlayerHUDWidget::SetInteractPrompt(const FText& ActionText)
 		return;
 	}
 
-	// 키 글자는 IMC_Default에서 IA_Interact에 매핑한 키(E)와 맞춘다.
-	mInteractText->SetText(FText::Format(NSLOCTEXT("ElmHUD", "InteractPrompt", "[E] {0}"), ActionText));
+	// 키 글자를 코드에 적지 않고, IA_Interact에 지금 매핑된 키를 물어본다. IMC에서 키를 바꿔도 문구가 따라간다.
+	const FText KeyText = GetDefault<UDefaultInput>()->FindMappedKeyText(GetOwningLocalPlayer(), TEXT("Interact"));
+
+	// 시작 직후처럼 키를 아직 모를 때는 동작 이름만 띄운다. (0.1초마다 다시 불리므로 곧 키가 붙는다)
+	if (KeyText.IsEmpty())
+		mInteractText->SetText(ActionText);
+	else
+		mInteractText->SetText(FText::Format(NSLOCTEXT("ElmHUD", "InteractPrompt", "[{0}] {1}"), KeyText, ActionText));
+
 	// 글자일 뿐이므로 마우스 클릭을 가로채지 않게 한다.
 	mInteractText->SetVisibility(ESlateVisibility::HitTestInvisible);
 }

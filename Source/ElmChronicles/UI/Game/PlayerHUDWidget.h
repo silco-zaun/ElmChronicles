@@ -30,7 +30,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UStatusBarWidget> mStatusBarWidget;
 
-	// 상호작용 안내 문구 ("[E] 대화하기"). 대상이 없으면 숨긴다.
+	// 상호작용 안내 문구 ("[F] 대화하기"). 대상이 없으면 숨긴다.
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UTextBlock> mInteractText;
 
