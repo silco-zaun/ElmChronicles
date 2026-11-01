@@ -7,11 +7,9 @@
 #include "../AbilitySystem/Components/AIAbilitySystemComponent.h"
 #include "../AbilitySystem/ElmGameplayTags.h"
 #include "../AI/ElmAIController.h"
-#include "../Data/Tables/DialogueTableRow.h"
 #include "../ElmCollisionChannels.h"
 #include "../Player/DialogueComponent.h"
 #include "../Player/ElmPlayerController.h"
-#include "../UI/Game/PlayerHUDWidget.h"
 #include "PlayerCharacter.h"
 #include "AIController.h"
 #include "BrainComponent.h"
@@ -111,6 +109,40 @@ void ANPCCharacter::Interact(APlayerCharacter* Player)
 
 	if (IsValid(PlayerController))
 		PlayerController->GetDialogue()->StartDialogue(this, mDialogueRow);
+}
+
+void ANPCCharacter::BeginTalk(APawn* Listener)
+{
+	AAIController* AIController = GetController<AAIController>();
+
+	if (!IsValid(AIController))
+		return;
+
+	// BT를 멈춘다. 그대로 두면 순찰이나 귀가(HomeLocation) 중인 NPC가 말하다가 걸어가 버린다.
+	// 멈춘 동안에도 시야(Perception)는 Blackboard의 Target을 갱신하므로, 적이 보이면 CanInteract가 false가 되어 대화가 끊긴다.
+	if (AIController->BrainComponent)
+		AIController->BrainComponent->PauseLogic(TEXT("Talk"));
+
+	// BT가 멈춰도 이미 시작한 이동은 계속되므로 따로 세운다.
+	AIController->StopMovement();
+	// 말하는 상대 쪽으로 돈다. (bUseControllerDesiredRotation이라 RotationRate 속도로 천천히 돈다)
+	AIController->SetFocus(Listener);
+}
+
+void ANPCCharacter::EndTalk()
+{
+	AAIController* AIController = GetController<AAIController>();
+
+	if (!IsValid(AIController))
+		return;
+
+	// 바라보기를 먼저 푼다. BT가 다시 돌면 공격 태스크가 같은 우선순위(Gameplay)로 포커스를 걸기 때문이다.
+	AIController->ClearFocus(EAIFocusPriority::Gameplay);
+
+	// 쓰러져 있어도 반드시 푼다. 사망 때의 StopLogic은 일시정지를 풀지 않아서, 여기서 안 풀면 부활(RestartLogic) 뒤에도 BT가 멈춰 있다.
+	// (멈춘 BT에 ResumeLogic을 불러도 실행할 노드가 없어서 다시 돌지는 않는다)
+	if (AIController->BrainComponent)
+		AIController->BrainComponent->ResumeLogic(TEXT("Talk"));
 }
 
 void ANPCCharacter::Revive()

@@ -5,6 +5,7 @@
 #include "ElmPlayerController.h"
 #include "InteractionComponent.h"
 #include "../Characters/NPCCharacter.h"
+#include "../Characters/PlayerCharacter.h"
 #include "../Data/Tables/DialogueTableRow.h"
 #include "../Input/DefaultInput.h"
 #include "../Input/DialogueInput.h"
@@ -13,6 +14,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "TimerManager.h"
 
 UDialogueComponent::UDialogueComponent()
 {
@@ -41,6 +43,19 @@ void UDialogueComponent::StartDialogue(ANPCCharacter* NPC, FName StartRow)
 	mDialogueNPC = NPC;
 	mDialogueRow = StartRow;
 
+	APawn* PlayerPawn = PlayerController->GetPawn();
+
+	// NPC는 하던 행동(순찰, 귀가)을 멈추고 플레이어를 바라본다.
+	NPC->BeginTalk(PlayerPawn);
+
+	// 플레이어도 NPC 쪽으로 돌린다. 이동 방향으로 도는 캐릭터(bOrientRotationToMovement)라 입력이 없으면 스스로 돌지 않는다.
+	// 높이 차이로 몸이 기울지 않게 수평 방향만 쓴다.
+	if (IsValid(PlayerPawn))
+	{
+		const FVector ToNPC = (NPC->GetActorLocation() - PlayerPawn->GetActorLocation()).GetSafeNormal2D();
+		PlayerPawn->SetActorRotation(ToNPC.Rotation());
+	}
+
 	// 인벤토리를 닫는다. RefreshInputMode가 커서도 함께 숨긴다.
 	PlayerController->SetInventoryOpen(false);
 
@@ -49,6 +64,10 @@ void UDialogueComponent::StartDialogue(ANPCCharacter* NPC, FName StartRow)
 
 	SetDialogueInput(true);
 	PlayerController->GetPlayerHUDWidget()->SetDialogueLine(Line->Speaker, Line->Text);
+	
+	// 대화 중에는 0.1초마다 끊을 일(NPC가 쓰러지거나 싸우기 시작함, 플레이어 사망)이 생겼는지 본다.
+	GetWorld()->GetTimerManager().SetTimer(mCheckTimer, this, 
+		&UDialogueComponent::CheckInterrupt, CheckInterval, true);
 }
 
 void UDialogueComponent::AdvanceDialogue()
@@ -85,6 +104,13 @@ void UDialogueComponent::EndDialogue()
 	// 마지막 줄, 전투, 피격처럼 여러 곳에서 불러도 한 번만 정리한다.
 	if (!IsInDialogue())
 		return;
+
+	GetWorld()->GetTimerManager().ClearTimer(mCheckTimer);
+
+	// mDialogueNPC를 비우기 전에 부른다. NPC가 사라졌으면(Destroy) 되돌릴 것이 없다.
+	// 쓰러져 있을 뿐이면 IsValid가 true라서 EndTalk가 불린다. (부활 뒤에 BT가 돌려면 필요하다)
+	if (mDialogueNPC.IsValid())
+		mDialogueNPC->EndTalk();
 
 	mDialogueNPC = nullptr;
 	mDialogueRow = NAME_None;
@@ -140,4 +166,16 @@ void UDialogueComponent::SetDialogueInput(bool Dialogue)
 		InputSubsystem->RemoveMappingContext(DialogueInputCDO->mInputMappingContext);
 		InputSubsystem->AddMappingContext(DefaultInputCDO->mInputMappingContext, 0);
 	}
+}
+
+void UDialogueComponent::CheckInterrupt()
+{
+	const AElmPlayerController* PlayerController = GetOwner<AElmPlayerController>();
+	const APlayerCharacter* PlayerCharacter = IsValid(PlayerController) ? PlayerController->GetPawn<APlayerCharacter>() : nullptr;
+
+	// CanInteract를 다시 물으면 NPC가 쓰러진 경우와 싸우기 시작한 경우(Blackboard Target)를 한 번에 잡는다.
+	// 플레이어 사망은 OnDamagedBy가 아니라 OnKilledBy로 가므로 여기서 잡는다.
+	if (!IsValid(PlayerCharacter) || PlayerCharacter->IsDead() ||
+		!mDialogueNPC.IsValid() || !mDialogueNPC->CanInteract(PlayerCharacter))
+		EndDialogue();
 }

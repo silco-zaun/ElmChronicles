@@ -24,6 +24,11 @@ protected:
 	// 지금 대화창에 보이는 DT_Dialogue 행. None이면 대화 중이 아니다.
 	// NPC가 사라져도 대화 중인 것은 알아야 정리할 수 있으므로, 대화 중인지는 NPC가 아니라 이 값으로 판단한다.
 	FName mDialogueRow;
+	// 대화 중에만 돈다. 0.1초마다 대화를 끊을 일이 생겼는지 본다.
+	FTimerHandle mCheckTimer;
+
+	// 끊김 확인 주기(초). 상호작용 검색과 같은 주기다.
+	static constexpr float CheckInterval = 0.1f;
 
 public:
 	bool IsInDialogue() const { return !mDialogueRow.IsNone(); }
@@ -40,4 +45,8 @@ private:
 	const FDialogueTableRow* FindDialogueLine(FName Row) const;
 	// true면 IMC_Default를 빼고 IMC_Dialogue를 넣는다. false면 반대로 한다.
 	void SetDialogueInput(bool Dialogue);
+
+	// 플레이어가 죽었거나, NPC가 사라졌거나, NPC와 더는 말할 수 없으면(쓰러짐, 전투 시작)
+	// 대화를 끝낸다. (타이머로 0.1초마다)
+	void CheckInterrupt();
 };

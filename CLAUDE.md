@@ -82,7 +82,7 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 
 - 아군/적 구분은 **충돌 채널이 아니라 팀**이 한다. 모든 캐릭터 캡슐은 `Pawn` 프로필이고, 공격 판정은 `ElmChannels::MakeCharacterObjectQuery()`(ECC_Pawn)로 찾은 뒤 `IsHostile`로 거른다.
 - 팀 관계는 `AI/TeamTypes.h`의 `SolveTeamAttitude` 관계표 하나가 정한다. 모듈 `StartupModule`에서 `FGenericTeamId::SetAttitudeSolver`로 등록되며, AI 시야와 공격 판정이 모두 이것을 거친다.
-- 커스텀 채널은 `Interaction`(ECC_GameTraceChannel1, 기본 Ignore) 하나다. 채널을 추가하면 `ElmCollisionChannels.h`를 `DefaultEngine.ini` 순서와 맞춘다. `DefaultEngine.ini`의 `EditProfiles`에 남은 Player/Monster/PlayerAttack/MonsterAttack 채널은 예전 구조의 잔재다.
+- 커스텀 채널은 `Interaction`(ECC_GameTraceChannel1, 기본 Ignore) 하나다. 채널을 추가하면 `ElmCollisionChannels.h`를 `DefaultEngine.ini` 순서와 맞춘다. 채널을 지울 때는 `DefaultEngine.ini`의 `+EditProfiles=`(엔진 기본 프리셋의 커스텀 채널 응답) 줄과 `CollisionChannelRedirects`에 그 이름이 남지 않게 에디터를 끄고 직접 지운다. 남으면 에디터 시작 때 `LogCollisionProfile: ... Custom Channel Name = '...' hasn't been found` 경고가 프리셋마다 난다(2026-11-01 예전 Player/Monster/PlayerAttack/MonsterAttack 잔재를 정리했다).
 - KayKit 메시는 임포트 때 만들어진 단순 콜리전이 메시 전체를 덮는 볼록 껍질(convex hull) 하나다. 그래서 문틀이나 성문처럼 구멍이 있는 메시는 구멍까지 막는다. 캐릭터 이동은 단순 콜리전을 쓰므로, 지나가야 하는 메시는 Collision Complexity를 `Use Complex Collision As Simple`로 바꾼다.
   - 2026-10-30에 바꾼 메시: `Dungeon/Assets/wall_doorway_scaffold`(Hospital / KyleHouse / Shop / Tavern, KyleHouse 방에서 나갈 수 없던 버그), `MedievalHexagon/.../Neutral/wall_straight_gate`·`wall_corner_A_gate`(Field의 `Gate_*` 5개, 성문을 지나갈 수 없던 버그).
   - `wall_doorway`(Palace / VoidRaindungeon)는 아직 그대로다. 실내 맵 출구 문틀은 그 안에 놓인 문 메시(`*_door`, 볼록 껍질 콜리전)가 막는다.

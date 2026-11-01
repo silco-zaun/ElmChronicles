@@ -2,9 +2,9 @@
 
 > **다음 세션 시작 방법**: 이 문서를 읽고 → `git status` / `git diff`로 어디까지 했는지 확인하고 → [진행 상황](#진행-상황) 표에서 첫 번째 ☐ / ◐ 단계부터 이어서 한다.
 >
-> 마지막 갱신: 2026-10-30 17:23
+> 마지막 갱신: 2026-11-01
 >
-> **지금 상태**: Step 3(상호작용 컴포넌트)과 Step 4(대화 컴포넌트) 코드가 모두 들어갔고 빌드도 성공했다. 하지만 두 빌드(16:41, 17:20) 모두 에디터를 켠 채 IDE에서 해서 Hot Reload로 들어갔고, 그 뒤 PIE를 한 번도 하지 않았다. **다음 할 일**: 에디터를 끄고(에셋 저장 안 함) 다시 연 뒤 Step 3 + Step 4 테스트 표 확인 → 사용자가 "Step 4 완료" → Claude 리뷰 → Step 5 안내. 아무것도 커밋하지 않았다([진행 방식](#진행-방식)의 커밋 나누기 참고).
+> **지금 상태**: Step 3 / 4 코드는 커밋 `6689cfe`("NPC 대화", 2026-10-30 17:26)에 있고, Step 5 코드는 미커밋이다. 셋 다 리뷰를 통과했고 빌드도 성공했다(2026-11-01 15:35, include 복구 후). 2026-11-01 PIE에서 사용자가 테스트했지만, 로그에 AI가 타겟을 잡은 기록(`... Target : ...`)이 한 번도 없다. 그래서 Step 5의 전투 관련 행(몬스터 등장, 피격, NPC 쓰러짐, 플레이어 사망)은 아직 확인되지 않은 것으로 본다([Step 5 리뷰](#step-5-대화-중-처리)). **다음 할 일**: 사용자에게 테스트 결과를 받는다 → 통과한 단계는 ☑로 바꾼다 → 전투 관련 행을 확인한다 → 작업이 끝나면 CLAUDE.md에 대화 구조를 옮기고 이 문서를 지울지 묻는다.
 
 ## 목표
 
@@ -59,14 +59,18 @@
 
 | 증상 | 원인 | 해결 |
 | --- | --- | --- |
-| 대화 중에 죽은 필수 NPC(TavernKeeper)가 부활한 뒤 가만히 서 있음 | `UBehaviorTreeComponent::StopTree`(사망 시 `OnKilledBy`가 부름)는 `bIsPaused`를 풀지 않는다. `ProcessExecutionRequest`는 `bIsPaused`면 실행을 무시하므로, `Revive`의 `RestartLogic` 뒤에도 BT가 멈춰 있다 (엔진 `BehaviorTreeComponent.cpp`의 `PauseLogic` / `ResumeLogic` / `ProcessExecutionRequest`에서 확인) | `EndTalk`는 NPC가 죽었어도 **반드시** `ResumeLogic`을 부른다. `IsDead()`로 건너뛰지 않는다 |
+| 대화 중에 죽은 필수 NPC(TavernKeeper)가 부활한 뒤 가만히 서 있음 | `UBehaviorTreeComponent::StopTree`(사망 시 `OnKilledBy`가 부름)는 `bIsPaused`를 풀지 않는다. `ProcessExecutionRequest`는 `bIsPaused`면 실행을 무시하므로, `Revive`의 `RestartLogic` 뒤에도 BT가 멈춰 있다 (엔진 `BehaviorTreeComponent.cpp`의 `PauseLogic` / `ResumeLogic` / `ProcessExecutionRequest`에서 확인) | `EndTalk`는 NPC가 죽었어도 **반드시** `ResumeLogic`을 부른다. `IsDead()`로 건너뛰지 않는다. 멈춘(Stop) BT에 `ResumeLogic`을 불러도 다시 돌지 않는다: `ProcessExecutionRequest`가 비어 있는 `InstanceStack`을 보고 바로 return한다 (2026-11-01 엔진 코드로 확인) |
+| (확인) BT를 멈춘 동안 몬스터가 와도 NPC가 모르지 않을까 | `BTService_CheckAttackRange`는 BT가 멈추면 돌지 않는다. 하지만 시야 이벤트(`AElmAIController::OnTargetPerceptionUpdated` → `UpdateTarget`)는 BT가 아니라 컨트롤러의 Perception이 부르므로, 멈춘 동안에도 Blackboard `Target`을 쓴다. `PauseLogic`은 Blackboard 변경 알림만 모아 두고(`PauseObserverNotifications`), `ResumeLogic`이 모아 둔 알림을 보낸다(`ResumeObserverNotifications(true)`) (2026-11-01 엔진 코드로 확인) | 따로 할 일 없다. `CanInteract`가 Blackboard `Target`을 바로 읽으므로 0.1초 안에 대화가 끊기고, `EndTalk`의 `ResumeLogic` 뒤에 BT가 전투 쪽으로 넘어간다 |
+| include를 정리했더니 `error C2027: use of undefined type 'APlayerCharacter'` | `IInteractable` 함수는 `APlayerCharacter*`를 받지만 `Interactable.h`에는 전방 선언만 있다. 포인터를 넘기기만 하면 괜찮지만 `Player->...`처럼 멤버를 쓰면 전체 정의가 필요하다. 고친 .cpp는 Adaptive Build가 unity 파일에서 빼서 따로 컴파일하므로, 다른 .cpp 덕에 우연히 되던 include도 빠지면 바로 에러가 난다 (2026-11-01 `NPCCharacter.cpp`에서 실제로 남) | `Player->`를 쓰는 구현 .cpp(`NPCCharacter.cpp`)는 `PlayerCharacter.h`를 직접 include한다. 포인터를 넘기기만 하는 `LevelPortal.cpp`에는 없어도 된다. 안내에 없는 include는 지우지 않는다 |
+| 에셋 저장 실패 `MoveFile was unable to move '...uasset' to '.../Saved/...tmp'` → `Error saving` | 다른 프로세스가 그 파일을 잡고 있어 저장 단계에서 원본을 옮기지 못했다. 2026-11-01 15:31 `WBP_Dialogue`에서 PIE 중에 났다. 무엇이 잡고 있었는지는 확인하지 못했다 | PIE를 끄고 다시 저장한다. 그래도 안 되면 에디터를 다시 열고 저장한다(2026-11-01에는 이것으로 해결). 파일 수정 시간으로 저장됐는지 확인한다 |
+| PC를 바꿔 pull했는데 바뀐 코드가 동작하지 않음 | `Binaries/`, `Intermediate/`는 gitignore 대상이라 pull로 오지 않는다. 2026-11-01 PC의 DLL은 2026-10-30 00:22 빌드였다 | pull한 뒤에는 에디터를 끈 채 빌드부터 한다 |
 | (예방) 공격 태스크가 건 포커스가 지워짐 | `BTTask_MonsterAttack`도 `SetFocus(Target)`(Gameplay 우선순위)를 쓴다 | `EndTalk`에서 `ClearFocus` → `ResumeLogic` 순서를 지킨다. 전투로 대화가 끊길 때는 BT가 아직 멈춰 있어서 공격 태스크가 포커스를 걸기 전이다 |
 | (예방) 컴포넌트 `BeginPlay`에서 HUD가 null | 컴포넌트의 `BeginPlay`는 컨트롤러 `BeginPlay`의 `Super::BeginPlay()` 안에서 불린다. HUD는 그 뒤에 컨트롤러가 만든다 | 컴포넌트 `BeginPlay`에서는 타이머만 걸고 HUD를 건드리지 않는다. 첫 검색은 0.1초 뒤라 그때는 HUD가 있다 |
 | (예방) 컴포넌트 함수를 `BindAction`에 넘기면 컴파일 에러 | `BindAction`은 객체 포인터 타입(`UserClass*`)을 템플릿으로 추론한다. `TObjectPtr`를 그대로 넘기면 추론하지 못한다 | `mInteraction.Get()`처럼 원시 포인터로 넘긴다 |
 | (예방) F로 대화를 시작하자마자 첫 대사가 넘어감 | F가 눌린 채로 IMC가 바뀐다 | `FModifyContextOptions`의 기본값 `bIgnoreAllPressedKeysUntilRelease = true`가 키를 뗄 때까지 무시해 준다. `AddMappingContext` / `RemoveMappingContext`에 옵션을 따로 넘기지 않는다 |
 | (예방) 위 무시가 안 먹음: 대화 시작 F가 첫 줄을 넘기거나, 마지막 줄을 넘긴 F / Space / 클릭이 상호작용 / 점프 / 공격으로 이어짐 | 이 무시는 **Value Type이 Boolean인 액션에만** 걸린다(엔진 `EnhancedInputSubsystemInterface.cpp`의 `RebuildControlMappings`, `Mapping.Action->ValueType == EInputActionValueType::Boolean`). 2026-10-30 확인: `IA_Interact` / `IA_Jump` / `IA_Attack` / `IA_DialogueNext`는 Boolean이다 | `IA_DialogueNext`의 Value Type을 `Digital (bool)`에서 바꾸지 않는다 |
 | (예방) 마지막 줄에서 `FindRow` 경고 로그 `requested invalid row 'None'` | `UDataTable::FindRow`는 `None`을 넣으면 경고를 남긴다 | `AdvanceDialogue`에서 `NextRow.IsNone()`을 먼저 보고, None이 아닐 때만 찾는다 |
-| (예방) 새 IMC / IA를 코드가 못 찾음 (`CDO Constructor (DialogueInput): Failed to find`) | `UDefaultInput` / `UDialogueInput` CDO는 에디터(모듈)가 뜰 때 한 번 만들어진다. 그때 에셋 파일이 없으면 에디터를 다시 열 때까지 비어 있다 (`MenuUI_Progress.md`의 `IA_Menu`와 같은 함정). 에셋을 옮기면 경로도 바뀐다 | 에셋을 먼저 만들거나 옮겨서 저장 → 에디터를 끄고 빌드 → 에디터를 다시 연다 |
+| (예방) 새 IMC / IA를 코드가 못 찾음 (`CDO Constructor (DialogueInput): Failed to find`) | `UDefaultInput` / `UDialogueInput` CDO는 에디터(모듈)가 뜰 때 한 번 만들어진다. 그때 에셋 파일이 없으면 에디터를 다시 열 때까지 비어 있다 (메뉴 작업 `IA_Menu`와 같은 함정. 지운 문서: `git show 6689cfe:Docs/MenuUI_Progress.md`). 에셋을 옮기면 경로도 바뀐다 | 에셋을 먼저 만들거나 옮겨서 저장 → 에디터를 끄고 빌드 → 에디터를 다시 연다 |
 | 레벨 이동 때 대화용 IMC가 남지 않을까 | 적용된 IMC 목록(`AppliedInputContextData`)은 `UEnhancedPlayerInput`에 있고, 이것은 PlayerController가 가진다. `OpenLevel`이 컨트롤러를 새로 만들면 목록도 비고, 새 캐릭터 `BeginPlay`가 `IMC_Default`를 다시 넣는다 (엔진 `EnhancedPlayerInput.h`에서 확인). 컨트롤러에 붙은 두 컴포넌트도 함께 새로 만들어진다 | `EndPlay`에서 IMC나 대화 상태를 되돌릴 필요가 없다 |
 | Hot Reload 뒤 PIE에 안내 문구도 대화창도 HUD도 없음 | 로그 `WBP_PlayerHUD_C is not a child class of Class /Script/ElmChronicles.PlayerHUDWidget`, `CDO Constructor (ElmPlayerController): Failed to find /Game/UI/Game/WBP_PlayerHUD.WBP_PlayerHUD_C`. Hot Reload가 컨트롤러 / HUD 클래스를 바꿔 끼우는 순간 컨트롤러 CDO가 WBP 클래스를 못 찾아 `mPlayerHUDWidgetClass`가 빈다. 2026-10-30 16:41 Step 3 빌드에서 실제로 났다(메뉴 작업 `MenuUI_Progress.md`에서도 같은 일). 17:20 Step 4 빌드도 같은 세션에서 Hot Reload로 들어갔다(그때는 이 에러 없음, `WBP_Dialogue` 다시 컴파일) | 코드가 틀린 것이 아니다. 그 세션에서는 에셋(특히 `WBP_PlayerHUD`, `WBP_Dialogue`)을 저장하지 말고 에디터를 끈다. 다시 열면 `UnrealEditor.modules`가 가리키는 마지막 DLL을 처음부터 불러와서 정상이다. 다음부터는 에디터를 끄고 빌드한다 |
 | 로그 `CDO Constructor (ItemBox): Failed to find .../SM_PP_Theme_04_Spellbook_003` | `Item/ItemBox.cpp` 생성자가 찾는 메시 에셋이 없다. 2026-10-30 12:20 에디터 시작 때부터 매번 난다 | **이 작업과 관계없다.** 대화 / 상호작용 문제를 찾을 때 헷갈리지 않는다 |
@@ -158,8 +162,8 @@ void EndTalk();
 | Step 1 | 대화 데이터: `FDialogueTableRow`, `DT_Dialogue.csv`, DT 임포트, 로그로 확인 | ☑ 코드 리뷰 통과, 빌드 확인, CSV 생성 (2026-10-27). DT 임포트 / DA 등록은 2026-10-30 파일로 확인 |
 | Step 2 | 대화창 UI: `UDialogueWidget`, `WBP_Dialogue`, HUD 연결 | ☑ 2026-10-30 리뷰 통과. 커밋 `7d86c3e`에 코드와 에셋이 있다(`WBP_Dialogue`에 `mSpeakerText` / `mDialogueText`, `WBP_PlayerHUD`에 `mDialogueWidget`). 로그에 바인딩 에러 없음. PIE 화면 확인 기록은 없다 |
 | Step 3 | 상호작용 컴포넌트: 컨트롤러의 상호작용 코드를 `UInteractionComponent`로 옮긴다 (리팩터링, 동작 변화 없음) | ◐ **코드 리뷰 통과(2026-10-30), PIE 테스트 남음.** 빌드는 Hot Reload로만 들어갔다([Step 3 리뷰 결과](#step-3-상호작용-컴포넌트)). CLAUDE.md "입력 / 상호작용 / UI"는 리뷰 통과 뒤 고쳤다 |
-| Step 4 | 대화 컴포넌트 + 대화 진행: `UDialogueComponent`, NPC `Interact` 연결 (처음 계획의 Step 3) | ◐ **코드 입력 끝, 빌드 성공(17:20, Hot Reload), PIE 테스트와 정식 리뷰 남음.** 2026-10-30 17:23 Claude가 파일로 확인한 결과 안내와 같고, `NPCCharacter.cpp`에 쓰지 않는 include 두 줄만 남았다([Step 4 확인](#step-4-대화-컴포넌트--대화-진행)) |
-| Step 5 | 대화 중 처리: NPC `BeginTalk` / `EndTalk`, 마주 보기, 끊기는 조건 (처음 계획의 Step 4) | ☐ |
+| Step 4 | 대화 컴포넌트 + 대화 진행: `UDialogueComponent`, NPC `Interact` 연결 (처음 계획의 Step 3) | ◐ **정식 리뷰 통과(2026-11-01), PIE 테스트 남음.** 쓰지 않는 include 두 줄은 Step 5에서 지웠다 |
+| Step 5 | 대화 중 처리: NPC `BeginTalk` / `EndTalk`, 마주 보기, 끊기는 조건 (처음 계획의 Step 4) | ◐ **리뷰 통과, 빌드 성공(2026-11-01 15:35). PIE 결과 확인 남음(전투 관련 행은 로그상 미실행)** |
 
 사전 조건: 레벨에 `NPCCharacter`를 놓고 Details의 **M Row Name**을 `TavernKeeper`로 정해 둔다.
 
@@ -245,15 +249,19 @@ Step 4 코드가 이미 들어가서 "TavernKeeper 앞에서 F → 첫 줄(Step 
 - 17:20 IDE 빌드는 `Result: Succeeded`, 다시 Hot Reload(`-0003.dll`, 같은 에디터 세션)로 들어갔다. 이번에는 `WBP_PlayerHUD_C` 에러는 없었고 `WBP_Dialogue`가 다시 컴파일됐다. 그 뒤 PIE 없음.
 - 관계없는 기존 코드: `AElmPlayerController::SetMenuOpen` 주석에 "I / E는 막힌다"가 남아 있다(메뉴 작업 코드, 지금은 F).
 
+2026-11-01 정식 리뷰 (커밋 `6689cfe` 기준): 통과.
+- `StartDialogue`는 첫 행을 찾은 뒤에만 상태를 바꾸고, `AdvanceDialogue`는 `NextRow.IsNone()`을 먼저 보고, `EndDialogue`는 대화 중이 아니면 바로 return한다. 안내와 같다.
+- `NPCCharacter.cpp`의 `DialogueTableRow.h` / `PlayerHUDWidget.h` include는 아직 남아 있다. 같은 파일을 고치는 Step 5에서 지운다.
+
 ### Step 5: 대화 중 처리
 
-- 작업
-  - [NPCCharacter.h/.cpp](../Source/ElmChronicles/Characters/NPCCharacter.h): `BeginTalk(APawn* Listener)` = `BrainComponent->PauseLogic` → `StopMovement` → `SetFocus(Listener)`. `EndTalk()` = `ClearFocus(EAIFocusPriority::Gameplay)` → `BrainComponent->ResumeLogic`. **죽었어도 `ResumeLogic`을 부른다** ([주의](#주의) 첫 줄)
-  - `UDialogueComponent::StartDialogue`: `mDialogueNPC->BeginTalk(플레이어)`, 플레이어를 NPC 방향(Yaw)으로 회전, `mCheckTimer`(0.1초 반복) 시작. `EndDialogue`: 타이머 끄기, `EndTalk()` (NPC가 사라졌으면 건너뜀)
-  - `UDialogueComponent::CheckInterrupt`: 플레이어가 죽었거나, NPC가 유효하지 않거나, `CanInteract`가 false면 `EndDialogue`
-  - [PlayerCharacter.cpp](../Source/ElmChronicles/Characters/PlayerCharacter.cpp) `OnDamagedBy`: `GetController<AElmPlayerController>()->GetDialogue()->EndDialogue()`
+- 작업 (2026-11-01 안내한 내용)
+  - [NPCCharacter.h/.cpp](../Source/ElmChronicles/Characters/NPCCharacter.h): `BeginTalk(APawn* Listener)` = `BrainComponent->PauseLogic` → `StopMovement` → `SetFocus(Listener)`. `EndTalk()` = `ClearFocus(EAIFocusPriority::Gameplay)` → `BrainComponent->ResumeLogic`. **죽었어도 `ResumeLogic`을 부른다** ([주의](#주의) 첫 줄). 함께: 클래스 주석의 "E로 말을 걸 수 있다"를 키 이름 없이 고치고, `NPCCharacter.cpp`의 `DialogueTableRow.h` / `PlayerHUDWidget.h` include 삭제
+  - [DialogueComponent.h/.cpp](../Source/ElmChronicles/Player/DialogueComponent.h): `mCheckTimer`, `CheckInterval = 0.1f`, `CheckInterrupt()` 추가. `StartDialogue`: 상태 저장 바로 뒤에 `NPC->BeginTalk(플레이어 Pawn)` + 플레이어를 NPC 방향으로 회전(`GetSafeNormal2D().Rotation()`), 마지막에 `mCheckTimer` 시작. `EndDialogue`: `IsInDialogue` 확인 바로 뒤, `mDialogueNPC`를 비우기 **전에** 타이머 끄기 → `mDialogueNPC.IsValid()`면 `EndTalk()`. include `../Characters/PlayerCharacter.h`, `TimerManager.h`
+  - `UDialogueComponent::CheckInterrupt`: 플레이어가 없거나 죽었거나, NPC가 유효하지 않거나, `CanInteract`가 false면 `EndDialogue`
+  - [PlayerCharacter.cpp](../Source/ElmChronicles/Characters/PlayerCharacter.cpp) `OnDamagedBy` 맨 앞: `if (AElmPlayerController* PlayerController = GetController<AElmPlayerController>()) PlayerController->GetDialogue()->EndDialogue();`. include `../Player/DialogueComponent.h`, `../Player/ElmPlayerController.h`
 - 빌드: 헤더 변경 → 에디터를 끄고 빌드
-- 테스트용 배치: TavernKeeper 근처(시야 800 밖)에 MonsterSpawner(BoneGrunt, Loop). 원거리 몬스터(BoneRogue / BoneMage)도 하나
+- 테스트용 배치: TavernKeeper 근처(NPC 시야 `DetectRange` 800 밖)에 `AISpawner`(Spawn Kind = Monster, Row Name = BoneGrunt, Loop). 원거리 몬스터(BoneRogue / BoneMage, 공격 거리 500)도 하나
 
 | 확인 | 기대 결과 |
 | --- | --- |
@@ -264,6 +272,19 @@ Step 4 코드가 이미 들어가서 "TavernKeeper 앞에서 F → 첫 줄(Step 
 | 대화 중 TavernKeeper가 쓰러짐 | 대화가 끝남 → 10초 뒤 일어나서 다시 싸우거나 귀가함. **가만히 서 있으면 `EndTalk`가 `ResumeLogic`을 건너뛴 것** |
 | 대화 중 플레이어 사망 | 대화창이 사라짐 |
 | 일반 대화(전투 없음) 회귀 | Step 4 테스트가 그대로 통과 |
+
+2026-11-01 리뷰 (미커밋 `git diff` 기준):
+- `NPCCharacter.h/.cpp`, `DialogueComponent.h/.cpp`, `PlayerCharacter.cpp`가 안내와 같다. `EndDialogue`는 `mDialogueNPC`를 비우기 전에 `EndTalk`를 부르고, `EndTalk`는 `IsDead()`로 건너뛰지 않는다.
+- **빌드 실패**: 사용자가 안내한 두 줄(`DialogueTableRow.h`, `PlayerHUDWidget.h`) 말고 `#include "PlayerCharacter.h"`까지 지웠다. `Interact`의 `Player->GetController<AElmPlayerController>()`가 `APlayerCharacter`의 전체 정의를 써야 하는데, `Interactable.h`에는 전방 선언(`class APlayerCharacter;`)만 있다 → `NPCCharacter.cpp(107,43): error C2027: use of undefined type 'APlayerCharacter'`. 그 줄을 `#include "../Player/ElmPlayerController.h"` 아래에 되살리면 된다.
+- 사용자가 함께 고친 것(문제없음): `NPCCharacter.h` 클래스 주석과 `AElmPlayerController::SetMenuOpen` 주석을 키 이름 없이("상호작용 키", "메뉴 키") 고쳤다.
+- 이 작업과 관계없는 미커밋 변경: 사용자가 `Config/DefaultEngine.ini`에서 예전 채널(Player / Monster / PlayerAttack / MonsterAttack)의 `+EditProfiles=` 줄과 리다이렉트를 모두 지우고, CLAUDE.md "팀과 충돌"도 직접 고쳤다. 그 뒤 세션(15:35)에서는 `LogCollisionProfile` 경고가 없다.
+- 사용자가 include를 복구한 뒤 15:35 빌드에 성공했다(`Result: Succeeded`, `UnrealEditor-ElmChronicles.dll`).
+
+2026-11-01 PIE 로그 확인 (사용자가 "테스트 했습니다"라고 한 뒤):
+- 15:14 PIE: `StartDialogue : NPCCharacter_0의 대화 시작 행 '안녕하세요'을(를) DT_Dialogue에서 찾지 못했습니다`가 두 번 났다. 대화는 시작되지 않고 조작도 막히지 않았다(에러 처리가 의도대로 동작함). `DT_NPC.uasset`은 바뀌지 않았으므로 저장하지 않고 값을 바꿔 시험한 것으로 보인다. 그 뒤 세션에서는 다시 나지 않았다.
+- 15:16~15:32, 15:41 PIE: 대화 관련 에러나 경고가 없다(정상 대화는 로그를 남기지 않는다).
+- **전투는 한 번도 없었다**: `AElmAIController::UpdateTarget`의 `%s Target : %s` 로그가 2026-11-01 로그 전체에 0건이다(2026-10-29 로그에는 있다). 그래서 위 표에서 "몬스터가 NPC 시야에 들어옴", "투사체에 맞음", "TavernKeeper가 쓰러짐", "플레이어 사망", 그리고 Step 3의 "죽은 직후 F"는 아직 확인되지 않았다. `Test` 맵에는 15:13에 `AISpawner` 두 개를 놓았다((-400, -100), (100, -800)). 둘 사이가 약 860이라 NPC 시야 800 밖이므로, 몬스터를 NPC 쪽으로 끌고 와야 한다.
+- `WBP_Dialogue`를 PIE 중에 고쳐 저장하다가 `MoveFile was unable to move ... WBP_Dialogue.uasset`, `Error saving` 오류가 15:31~15:32에 여러 번 났다. 에디터를 다시 연 뒤 15:41에 저장됐다(`mSpeakerText` / `mDialogueText` 바인딩은 그대로다).
 
 ## 에셋 작업
 
@@ -288,16 +309,8 @@ Step 4 코드가 이미 들어가서 "TavernKeeper 앞에서 F → 첫 줄(Step 
 - 이 작업의 모든 단계에 헤더 변경이 있으므로, 빌드는 에디터를 끄고 IDE에서 한다.
 - 단계가 리뷰를 통과하면 묻지 않고 이 문서의 상태를 ☑로 바꾼다. md 파일(이 문서, CLAUDE.md, 다른 Docs)의 수정도 묻지 않고 하고, 고친 내용은 답에서 짧게 알린다. 작업이 모두 끝나면 이 문서를 지울지 묻는다.
 - CLAUDE.md "입력 / 상호작용 / UI"의 상호작용 / 입력 설정 설명은 Step 3 리뷰 뒤 컴포넌트 기준으로 고쳤다(2026-10-30). 대화 구조는 작업이 끝나면 옮긴다.
-- 메뉴 작업(`MenuUI_Progress.md`)과 같은 파일(`ElmPlayerController`, `PlayerHUDWidget`)을 고친다. 메뉴 작업의 미커밋 변경이 있으면 이 단계 커밋에 섞이지 않게 한다.
-- 커밋 나누기 (2026-10-30 17:23 미커밋 변경을 Claude가 분류한 것. 마지막 커밋은 `d7e5748`)
-
-| 묶음 | 파일 |
-| --- | --- |
-| 이 작업 (입력 정리 + F 키 + 상호작용 / 대화 컴포넌트) | `Content/Input/` 전체(루트의 IA / IMC 삭제, `Default/`, `Dialogue/`), `Source/.../Input/`(`DefaultInput.cpp` 경로, `ElmInputConfig.*`의 `FindMappedKeyText`, 새 `DialogueInput.*`), `Player/InteractionComponent.*`, `Player/DialogueComponent.*`, `Player/ElmPlayerController.*`, `Characters/NPCCharacter.cpp`, `UI/Game/DialogueWidget.h`, `UI/Game/PlayerHUDWidget.*`, `Interaction/Interactable.h`, `Interaction/LevelPortal.h`(주석), `Docs/NPCDialogue_Plan.md` |
-| 메뉴 작업 | `GameModes/ElmGameModeBase.*`, `Subsystem/SaveSubsystem.*`, `UI/Game/MenuWidget.*`, `Docs/MenuUI_Progress.md` |
-| 레벨 / 콜리전 | `Content/Assets/KayKit/...`(문틀 / 성문 메시 3개), `Content/Maps/ElmKingdom/Field.umap` |
-| 기획 / 기타 | `Docs/Plan.md`(조작 변경: 상호작용 F, 스킬 E / Q), `README.md`, `Docs/LevelTravel_Progress.md` 삭제(이미 staged) |
-| 여러 묶음에 걸침 | `CLAUDE.md`: 빌드 절차, 문틀 콜리전, 메뉴, 입력 / 상호작용 설명이 섞여 있다. `git add -p`로 나누거나 한 묶음에 넣는다 |
+- 커밋: 2026-10-30 17:26에 사용자가 그때까지의 미커밋 변경(이 작업의 Step 3 / 4, 메뉴 작업, 문틀 / 성문 콜리전, 기획 변경)을 커밋 하나(`6689cfe` "NPC 대화")로 묶었다. 2026-11-01 기준 `Docs/MenuUI_Progress.md` 삭제가 staged 상태다(메뉴 작업 문서, 이 작업과 별개).
+- PC가 바뀌면 pull한 뒤 에디터를 끈 채 빌드부터 한다([주의](#주의)).
 
 ## 이후 작업 (이 계획의 범위 밖)
 

@@ -11,6 +11,8 @@
 #include "../Data/Tables/PlayerCharacterTableRow.h"
 #include "../GameModes/ElmGameModeBase.h"
 #include "../Input/DefaultInput.h"
+#include "../Player/DialogueComponent.h"
+#include "../Player/ElmPlayerController.h"
 #include "../Player/ElmPlayerState.h"
 #include "../Player/InventoryComponent.h"
 #include "../Save/ElmSaveGame.h"
@@ -298,6 +300,11 @@ void APlayerCharacter::InitAttributes()
 
 void APlayerCharacter::OnDamagedBy(AActor* Causer, float Damage)
 {
+	// 맞으면 대화를 끊는다. NPC가 보지 못한 곳(멀리서 날아온 투사체)에서 맞아도 끊기도록 NPC가 아니라 여기서 한다.
+	// 대화 중이 아니면 EndDialogue가 아무것도 하지 않는다.
+	if (AElmPlayerController* PlayerController = GetController<AElmPlayerController>())
+		PlayerController->GetDialogue()->EndDialogue();
+
 	UPlayerAnimInstance* Anim = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
 
 	if (IsValid(Anim))

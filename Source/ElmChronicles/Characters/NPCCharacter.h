@@ -9,7 +9,8 @@
 #include "NPCCharacter.generated.h"
 
 // 마을 NPC. 몬스터와 같은 AI / 공격 구조(AICharacter)를 쓰고 팀만 NPC다.
-// 외형과 능력치는 DT_NPC의 행(mRowName)에서 읽는다. 대화 행이 있으면 플레이어가 E로 말을 걸 수 있다.
+// 외형과 능력치는 DT_NPC의 행(mRowName)에서 읽는다.
+// 대화 행이 있으면 플레이어가 상호작용 키로 말을 걸 수 있다.
 UCLASS()
 class ELMCHRONICLES_API ANPCCharacter : public AAICharacter, public IInteractable
 {
@@ -37,6 +38,11 @@ public:
 	virtual FText GetInteractText() const override;
 	virtual bool CanInteract(const APlayerCharacter* Player) const override;
 	virtual void Interact(APlayerCharacter* Player) override;
+
+	// 대화 컴포넌트가 대화를 시작 / 끝낼 때 부른다.
+	// 시작: BT를 멈추고 제자리에 서서 Listener를 바라본다. 끝: 바라보기를 풀고 BT를 다시 돌린다.
+	void BeginTalk(APawn* Listener);
+	void EndTalk();
 
 protected:
 	virtual void InitAttributes() override;

@@ -151,7 +151,8 @@ void AElmPlayerController::SetMenuOpen(bool Open)
 	mPlayerHUDWidget->SetMenuVisible(Open);
 
 	// 멈추면 월드의 Tick과 타이머가 모두 선다. (몬스터, 애니메이션, 사망 후 병원 이동 타이머까지)
-	// 입력은 "Trigger when Paused"를 켠 액션(IA_Menu)만 들어온다. 그래서 B로 다시 닫을 수 있고 이동 / 공격 / I / E는 막힌다.
+	// 입력은 "Trigger when Paused"를 켠 액션(IA_Menu)만 들어온다.
+	// 그래서 메뉴 키로 다시 닫을 수 있고 이동 / 공격 / 인벤토리 키 / 상호작용 키는 막힌다.
 	SetPause(Open);
 	RefreshInputMode();
 }
