@@ -53,4 +53,10 @@ UDefaultInput::UDefaultInput()
 
 	if (MenuInputAction.Succeeded())
 		mInputActionMap.Add(TEXT("Menu"), MenuInputAction.Object);
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> QuestInputAction(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/Input/Default/IA_Quest.IA_Quest'"));
+
+	if (QuestInputAction.Succeeded())
+		mInputActionMap.Add(TEXT("Quest"), QuestInputAction.Object);
 }

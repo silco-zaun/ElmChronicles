@@ -20,6 +20,7 @@ Unreal Engine 5.8 C++ 싱글플레이 액션 RPG. 런타임 모듈은 `ElmChroni
 - 에디터가 Live Coding으로 열려 있으면 UBT 빌드가 거부된다(Visual Studio 빌드도 같다). 에디터를 닫고 빌드하거나, 에디터에서 Ctrl+Alt+F11로 Live Coding 컴파일한다. `UPROPERTY`/`UCLASS` 구조가 바뀐 헤더 변경은 에디터를 재시작해야 안전하다.
   - VS에서는 거부 메시지(`Unable to build while Live Coding is active`)가 출력 창에만 나와서 빌드된 줄 알기 쉽다(2026-10-30). 반영됐는지는 `Binaries/Win64/UnrealEditor-ElmChronicles*.dll` 수정 시간이나 `%LOCALAPPDATA%\UnrealBuildTool\Log.txt`의 `Result:`로 확인한다.
 - Live Coding이 시작되지 않았거나 에디터에서 Live Coding을 끈 채(2026-10-30) 에디터가 열려 있으면 UBT가 빌드를 막지 않고 `UnrealEditor-ElmChronicles-0001.dll`을 만들며, 에디터가 Hot Reload를 시도한다. 클래스를 지운 변경에서는 이 Hot Reload 중에 에디터가 크래시했다(2026-10-27). IDE 빌드는 항상 에디터를 끄고 한다.
+  - 새 행 구조체를 Hot Reload로 받은 세션에서 임포트한 DT는, 에디터를 다시 열면 `Missing RowStruct while loading DataTable`이 나며 행을 잃는다(2026-11-02 `DT_Quest`. DT를 지우고 다시 임포트해서 고쳤다). 새 `USTRUCT`가 들어간 빌드 뒤에는 에디터를 다시 연 다음에 임포트한다.
 - `.sln`/`.slnx`는 gitignore 대상(엔진이 생성)이다.
 - 자동화 테스트나 린트 설정은 없다. 검증은 PIE로 한다. 시작 맵은 `/Game/Maps/Test`다(`DefaultEngine.ini`).
 - `.mcp.json`의 `unreal-mcp`(`http://127.0.0.1:8000/mcp`)는 `ModelContextProtocol` 플러그인이 띄우는 서버라서 에디터가 실행 중일 때만 연결된다.
@@ -119,6 +120,20 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
   - 일시정지 중에는 **Trigger when Paused**를 켠 IA만 발동한다. `IA_Menu`만 켜 두어서 메뉴가 열린 동안 이동 / 공격 / I / F가 막힌다. 입력 모드는 `FInputModeGameAndUI`다(UIOnly면 B가 컨트롤러에 오지 않아 메뉴를 닫을 수 없다).
   - 일시정지 중에는 월드 타이머가 돌지 않는다. 타이머를 쓰는 일(`TravelToLevel`의 페이드)은 메뉴를 닫은 뒤에 부른다(`UMenuWidget::OnRecallClicked`).
   - 메뉴 버튼은 WBP에서 **Is Focusable**을 끈다. 켜 두면 클릭한 버튼이 포커스를 가져가 Space / Enter가 그 버튼을 다시 누른다.
+- 창(인벤토리 I, 퀘스트 P)을 더하는 길: IA + `IMC_Default` 매핑 → `UDefaultInput` 등록 → 컨트롤러 바인딩 → `SetXxxOpen` → HUD `SetXxxVisible` / `IsXxxVisible` → `IsAnyWindowOpen`에 추가(→ `RefreshInputMode`가 커서와 GameAndUI를 맞춘다). IA는 빌드 전에 만들어 저장한다(입력 설정 CDO가 에디터 시작 때 경로로 찾는다).
+
+### 대화 / 퀘스트
+
+- 대화: `UDialogueComponent`(`Player/`, 컨트롤러에 붙음, `GetDialogue()`). NPC의 `Interact`가 시작 행을 골라 `StartDialogue(NPC, Row)`를 부른다. 대사는 `DT_Dialogue`(`FDialogueTableRow`: `Speaker` / `Text` / `NextRow`) 한 줄이 한 행이고 `NextRow`가 None이면 끝이다. 선택지는 없다.
+  - 대화 중에는 `IMC_Default`를 빼고 `IMC_Dialogue`(F / Space / 마우스 왼쪽 → `IA_DialogueNext`)를 넣어 다른 입력을 한 번에 막는다. IMC를 바꾸는 순간 눌려 있던 키를 무시하는 기본 옵션은 Value Type이 Boolean인 IA에만 걸리므로 `IA_DialogueNext`는 Digital(bool)로 둔다. 커서는 띄우지 않는다.
+  - 시작할 때 인벤토리 / 퀘스트 창을 닫고 `UInteractionComponent::SetBlocked(true)`를 부른다. NPC는 `BeginTalk`(BT `PauseLogic`, 플레이어 바라보기) / `EndTalk`(`ClearFocus` → `ResumeLogic`)로 멈췄다가 돌아간다. `EndTalk`는 NPC가 쓰러져 있어도 반드시 `ResumeLogic`을 부른다(사망 때의 `StopLogic`은 일시정지를 풀지 않아서, 안 풀면 부활 뒤에도 BT가 멈춰 있다).
+  - 끊김: 대화 중에만 도는 0.1초 타이머(`CheckInterrupt`: 플레이어 사망, NPC `CanInteract` false = 쓰러짐 / 전투)와 `APlayerCharacter::OnDamagedBy`가 `EndDialogue`를 부른다.
+- 퀘스트: `UQuestComponent`(`Player/`, 컨트롤러에 붙음, `GetQuest()`)가 받은 퀘스트 목록(`TArray<FQuestProgress>`: `QuestRow` / `State` / `KillCount`)을 들고, 받기 / 처치 세기 / 완료와 보상을 맡는다. 데이터는 `DT_Quest`(`FQuestTableRow`: 제목, 설명, `TargetMonster`(DT_Monster 행) × `TargetCount`, `RewardExp` / `RewardGold`, `ProgressDialogue` / `CompleteDialogue`). 목표는 처치형 하나뿐이다.
+  - 받기: DT_NPC `QuestRow`가 있는 NPC와의 대화를 마지막 줄까지 넘기면 `UDialogueComponent::AdvanceDialogue`가 `AcceptQuest(NPC의 QuestRow)`를 부른다. 전투·피격으로 끊기면 받지 않는다. 수락 / 거절 UI는 없다(2026-11-02 대화창 버튼으로 만들다가 입력 모드·커서 처리까지 늘어나 사용자가 뺐다).
+  - 다시 말 걸기: `ANPCCharacter::ChooseDialogueRow`가 진행 상태로 시작 행을 고른다(받기 전 = DT_NPC `DialogueRow`, 진행 중 / 완료 = DT_Quest `ProgressDialogue` / `CompleteDialogue`, 비어 있으면 `DialogueRow`).
+  - 처치: `AMonsterCharacter::OnKilledBy` → `NotifyQuestKill`(잡은 캐릭터의 컨트롤러가 플레이어일 때만, 보상과 같은 규칙) → `NotifyMonsterKilled(mRowName)`. 목표 수를 채우는 순간 완료되고 `UGameplayEffect_Reward`(SetByCaller Exp / Gold)를 플레이어 ASC에 적용한다. NPC에게 보고하러 가지 않는다.
+  - 레벨 이동: 메모 규칙 그대로다. `APlayerCharacter::WriteToSave`가 `UElmSaveGame::Quests`에 적고, `UQuestComponent::InitQuests`(`CallOrRegisterDataLoaded`)가 읽는다.
+  - UI: HUD 오른쪽 `WBP_QuestTracker`(`UQuestTrackerWidget`, 진행 중만)와 P 키 창 `WBP_Quest`(`UQuestWidget`, 진행 중 + 완료)가 `AddQuestChangeCallback`으로 컴포넌트를 구독해서 스스로 다시 그린다. 레벨 이동 직후에는 HUD가 생기기 전에 목록이 되살아나므로 위젯이 `NativeConstruct`에서 한 번 직접 읽는다. 목표 글자("해골전사 처치 0 / 1")는 `UQuestComponent::MakeObjectiveText`가 만든다.
 
 ## 코드 컨벤션
 
@@ -126,4 +141,5 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 프로젝트 헤더는 상대 경로로 include하고(`"../GameInfo.h"`), 대부분의 헤더가 `GameInfo.h`를 먼저 include한다.
 - 로그 카테고리: `LogTestDebug`(경고/에러/디버그), `LogTestOrder`(초기화 호출 순서 추적).
 - 주석은 한글로, "왜 이렇게 하는지"를 적는다. 한 줄짜리 `if` 본문은 중괄호를 생략하는 스타일이다.
+- 소스 파일은 UTF-8(BOM)로 저장한다. 2026-11-02 새로 만든 `QuestTrackerWidget.cpp`가 CP949(ANSI)로 저장되어, 한국어 Windows에서는 빌드되지만 git diff와 다른 도구에서는 한글이 깨졌다. VS에서는 파일 → 다른 이름으로 저장 → 저장 버튼 옆 ▼ → 인코딩하여 저장 → "유니코드(서명 있는 UTF-8) - 코드 페이지 65001"로 바꾼다. 한글이 든 `NSLOCTEXT` / `TEXT` 문자열이 있는 파일은 특히 지킨다.
 - 생성자에서 에셋은 `ConstructorHelpers`로 전체 경로(`/Script/...'...'`)를 써서 찾는다. 클래스(ABP/WBP)는 경로 끝에 `_C`를 붙인다. 테이블로 정할 수 있는 외형/몽타주/어빌리티는 생성자 대신 DT의 Soft 참조를 쓴다.

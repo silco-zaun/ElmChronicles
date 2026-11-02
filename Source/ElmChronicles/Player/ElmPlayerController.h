@@ -32,12 +32,17 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<class UDialogueComponent> mDialogue;
 
+	// 받은 퀘스트, 처치 세기, 완료와 보상.
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<class UQuestComponent> mQuest;
+
 	FString mPlayerName;
 
 public:
 	class UPlayerHUDWidget* GetPlayerHUDWidget() const { return mPlayerHUDWidget; }
 	class UInteractionComponent* GetInteraction() const { return mInteraction; }
 	class UDialogueComponent* GetDialogue() const { return mDialogue; }
+	class UQuestComponent* GetQuest() const { return mQuest; }
 	const FString& GetPlayerName() const { return mPlayerName; }
 
 public:
@@ -54,6 +59,8 @@ protected:
 public:
 	void ToggleInventory();
 	void SetInventoryOpen(bool Open);
+	void ToggleQuest();
+	void SetQuestOpen(bool Open);
 	void ToggleMenu();
 	// 메뉴를 열면 게임을 멈추고, 닫으면 다시 움직인다. 메뉴의 "계속하기" / "귀환" 버튼도 이것으로 닫는다.
 	void SetMenuOpen(bool Open);

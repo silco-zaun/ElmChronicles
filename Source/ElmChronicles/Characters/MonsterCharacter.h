@@ -36,4 +36,6 @@ private:
 	// 부모가 1배로 넣은 크기 / 체력 / 공격 범위에 등급 배율을 곱한다.
 	void ApplyTypeScale(const FMonsterCharacterTableRow& Info);
 	void GiveReward(AActor* Killer);
+	// 플레이어가 잡았으면 퀘스트 컴포넌트에 알린다. (해골전사 처치 1 / 1)
+	void NotifyQuestKill(AActor* Killer);
 };

@@ -6,6 +6,7 @@
 #include "InventoryWidget.h"
 #include "ItemInfoWidget.h"
 #include "MenuWidget.h"
+#include "QuestWidget.h" 
 #include "StatusBarWidget.h"
 #include "../../Input/DefaultInput.h"
 #include "../../Item/ItemObject.h"
@@ -23,6 +24,7 @@ void UPlayerHUDWidget::NativeOnInitialized()
 	SetInteractPrompt(FText::GetEmpty());
 	SetDialogueVisible(false);
 	SetMenuVisible(false);
+	SetQuestVisible(false);
 }
 
 void UPlayerHUDWidget::SetPlayerName(const FString& Name)
@@ -101,10 +103,22 @@ bool UPlayerHUDWidget::IsMenuVisible() const
 	return mMenuWidget->GetVisibility() == ESlateVisibility::Visible;
 }
 
+void UPlayerHUDWidget::SetQuestVisible(bool Visible)
+{
+	// 인벤토리 창처럼 Visible로 둔다. 창 위를 클릭해도 뒤의 게임(공격)으로 새지 않는다.
+	mQuestWidget->SetVisibility(Visible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+}
+
+bool UPlayerHUDWidget::IsQuestVisible() const
+{
+	// IsInventoryVisible과 같은 이유로 직접 설정한 값과 비교한다.
+	return mQuestWidget->GetVisibility() == ESlateVisibility::Visible;
+}
+
 bool UPlayerHUDWidget::IsAnyWindowOpen() const
 {
-	// 나중에 스킬창, 퀘스트창이 생기면 여기에 || 로 추가한다.
-	return IsInventoryVisible() || IsMenuVisible();
+	// 나중에 스킬창이 생기면 여기에 || 로 추가한다.
+	return IsInventoryVisible() || IsMenuVisible() || IsQuestVisible();
 }
 
 void UPlayerHUDWidget::SetInteractPrompt(const FText& ActionText)

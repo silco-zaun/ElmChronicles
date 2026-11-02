@@ -9,6 +9,8 @@
 #include "../AbilitySystem/Components/AIAbilitySystemComponent.h"
 #include "../AbilitySystem/Effects/GameplayEffect_Reward.h"
 #include "../AbilitySystem/ElmGameplayTags.h"
+#include "../Player/ElmPlayerController.h"
+#include "../Player/QuestComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -95,6 +97,7 @@ void AMonsterCharacter::OnKilledBy(AActor* Killer)
 	Super::OnKilledBy(Killer);
 
 	GiveReward(Killer);
+	NotifyQuestKill(Killer);
 }
 
 void AMonsterCharacter::GiveReward(AActor* Killer)
@@ -120,4 +123,15 @@ void AMonsterCharacter::GiveReward(AActor* Killer)
 		mASC->GetNumericAttribute(UMonsterAttributeSet::GetDropGoldAttribute()));
 
 	mASC->ApplyGameplayEffectSpecToTarget(*RewardSpec.Data.Get(), KillerASC);
+}
+
+void AMonsterCharacter::NotifyQuestKill(AActor* Killer)
+{
+	// Killer는 때린 캐릭터(EffectCauser)다. 플레이어 캐릭터라면 플레이어 컨트롤러가 조종하고 있다.
+	// NPC가 잡았으면 컨트롤러가 AI라서 nullptr이 된다. (보상과 같은 규칙: 플레이어가 잡아야 센다)
+	const APawn* KillerPawn = Cast<APawn>(Killer);
+	AElmPlayerController* PlayerController = IsValid(KillerPawn) ? KillerPawn->GetController<AElmPlayerController>() : nullptr;
+
+	if (IsValid(PlayerController))
+		PlayerController->GetQuest()->NotifyMonsterKilled(mRowName);
 }

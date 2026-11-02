@@ -4,6 +4,7 @@
 #include "DialogueComponent.h"
 #include "ElmPlayerController.h"
 #include "InteractionComponent.h"
+#include "QuestComponent.h"
 #include "../Characters/NPCCharacter.h"
 #include "../Characters/PlayerCharacter.h"
 #include "../Data/Tables/DialogueTableRow.h"
@@ -56,8 +57,9 @@ void UDialogueComponent::StartDialogue(ANPCCharacter* NPC, FName StartRow)
 		PlayerPawn->SetActorRotation(ToNPC.Rotation());
 	}
 
-	// 인벤토리를 닫는다. RefreshInputMode가 커서도 함께 숨긴다.
+	// 인벤토리와 퀘스트 창을 닫는다. RefreshInputMode가 커서도 함께 숨긴다.
 	PlayerController->SetInventoryOpen(false);
+	PlayerController->SetQuestOpen(false);
 
 	// 대화 중에는 다른 대상과 상호작용하지 않는다. 대상을 비우고 안내 문구를 숨기고 검색을 멈춘다.
 	PlayerController->GetInteraction()->SetBlocked(true);
@@ -82,6 +84,12 @@ void UDialogueComponent::AdvanceDialogue()
 	// NextRow가 None이면 마지막 줄이다. FindRow에 None을 넣으면 경고 로그가 남으므로 먼저 거른다.
 	if (!Current || Current->NextRow.IsNone())
 	{
+		// 마지막 줄까지 넘겼으면(끝까지 들었으면) NPC가 주는 퀘스트를 받는다. 전투나 피격으로 끊기면 EndDialogue만 불려서 받지 않는다.
+		// 퀘스트가 없는 NPC이거나 이미 받은 퀘스트면 AcceptQuest가 아무것도 하지 않는다. (진행 중 / 완료 대사를 끝까지 들어도 그렇다)
+		// EndDialogue가 mDialogueNPC를 비우므로 그 전에 받는다.
+		if (Current && mDialogueNPC.IsValid())
+			PlayerController->GetQuest()->AcceptQuest(mDialogueNPC->GetQuestRow());
+
 		EndDialogue();
 		return;
 	}

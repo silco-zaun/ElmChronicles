@@ -68,18 +68,19 @@
 
 | 영역 | 상태 | 내용 |
 | --- | :---: | --- |
-| 데이터 로딩 | ✅ | AssetManager + `UAssetSubsystem` 비동기 로딩, DataTable 6종 (Player / Monster / NPC / Item / LevelStat / Dialogue) |
+| 데이터 로딩 | ✅ | AssetManager + `UAssetSubsystem` 비동기 로딩, DataTable 7종 (Player / Monster / NPC / Item / LevelStat / Dialogue / Quest) |
 | 플레이어 | ✅ | Enhanced Input 이동·점프, 3단 콤보 공격, 스탯 테이블 기반 초기화 |
 | 전투 (GAS) | ✅ | 근접(Sweep) / 원거리(투사체) 어빌리티, 몽타주 노티파이 기반 타격 판정, MP·쿨다운 비용, 데미지 Execution |
 | 몬스터 AI | ✅ | AIPerception 시야 + Behavior Tree, 순찰·추적·공격, 노멀/에픽/보스 등급 배율 |
 | NPC | ✅ | 필수 NPC는 쓰러져도 일정 시간 뒤 부활, 상호작용 인터페이스(`IInteractable`) |
 | 스포너 | ✅ | `AAISpawner` 하나로 몬스터/NPC 스폰, 1회/반복 재생성, 에디터에서 DT 행 선택 콤보박스 |
 | 인벤토리·장비 | ✅ | 슬롯 인벤토리, 드래그 앤 드롭 정렬, 포션 사용, 무기·방어구 장착 |
-| HUD | ✅ | HP/MP 바(Attribute 델리게이트 구독), 상호작용 안내 문구 |
+| HUD | ✅ | HP/MP 바(Attribute 델리게이트 구독), 상호작용 안내 문구, 퀘스트 추적창 |
 | 레벨 이동 | ✅ | 포탈 → 페이드 → 맵 전환, 가방·능력치 유지, 도착 지점 태그 지정 |
-| NPC 대화 | 🔧 | 대화 데이터(`DT_Dialogue`)·대화창 위젯 작업 중 (설계: [`NPCDialogue_Plan.md`](Docs/NPCDialogue_Plan.md)) |
+| NPC 대화 | ✅ | F로 말 걸기 → 대화창(`DT_Dialogue`), 대화 중 입력 교체(IMC), NPC가 멈춰서 플레이어를 바라봄, 전투·피격 시 대화 끊김 |
+| 퀘스트 | ✅ | NPC와의 대화를 끝까지 들으면 자동 수락(`DT_Quest`), 몬스터 처치 목표 추적, 완료 시 GE로 경험치·골드 보상, HUD 추적창·퀘스트 창(P), 레벨을 옮겨도 진행도 유지 |
 | 사망 → 병원 부활 | 🔧 | 설계 단계 |
-| 퀘스트 / 상점 / 스킬(E 회전베기 · Q 회오리 바람) / 자동 레벨업 | 📋 | 기획 완료, 구현 예정 |
+| 상점 / 스킬(1 ~ 4) · 포션 단축키(5 / 6) / 자동 레벨업 | 📋 | 기획 완료, 구현 예정 |
 | 툰 셰이딩·외곽선 | 📋 | 계획 문서 작성 ([`StylizedRendering.md`](Docs/StylizedRendering.md)) |
 
 > ✅ 구현 완료 · 🔧 진행 중 · 📋 예정 — 4주 일정 안에서 전투·AI·데이터 구조의 **완성도**를 우선하고, 콘텐츠 확장은 구조 위에 얹도록 설계했습니다.

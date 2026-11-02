@@ -26,10 +26,16 @@ protected:
 	float mReviveTime = 10.f;
 	// 대화 시작 행 (DT_Dialogue). None이면 대화할 수 없다.
 	FName mDialogueRow;
+	// 이 NPC가 주는 퀘스트 (DT_Quest). None이면 퀘스트가 없다.
+	FName mQuestRow;
 	FTimerHandle mReviveTimer;
 
 	// 일어날 때 채울 HP 비율 (MaxHP 기준)
 	static constexpr float ReviveHPRatio = 0.5f;
+
+public:
+	// 대화 컴포넌트가 대화를 끝까지 진행하면 이 퀘스트를 플레이어에게 준다.
+	FName GetQuestRow() const { return mQuestRow; }
 
 public:
 	virtual void Death() override;
@@ -51,4 +57,7 @@ protected:
 
 private:
 	void Revive();
+	// 퀘스트 진행 상태에 맞는 대화 시작 행을 고른다.
+	// (받기 전 = DialogueRow, 진행 중 / 완료 = 퀘스트의 대사)
+	FName ChooseDialogueRow(const class UQuestComponent* Quest) const;
 };

@@ -20,4 +20,9 @@ struct FNPCCharacterTableRow : public FAICharacterTableRow
 	// 대화 시작 행 이름 (DT_Dialogue). 비워두면(None) 대화할 수 없다. (Step 5에서 쓴다)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NPC")
 	FName DialogueRow;
+
+	// 이 NPC가 주는 퀘스트 (DT_Quest 행 이름). None이면 퀘스트를 주지 않는다.
+	// 대화를 끝까지 들으면 받고, 받은 뒤에는 퀘스트의 ProgressDialogue / CompleteDialogue로 대화를 시작한다.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NPC")
+	FName QuestRow;
 };

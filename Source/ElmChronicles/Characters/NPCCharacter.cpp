@@ -7,9 +7,11 @@
 #include "../AbilitySystem/Components/AIAbilitySystemComponent.h"
 #include "../AbilitySystem/ElmGameplayTags.h"
 #include "../AI/ElmAIController.h"
+#include "../Data/Tables/QuestTableRow.h"
 #include "../ElmCollisionChannels.h"
 #include "../Player/DialogueComponent.h"
 #include "../Player/ElmPlayerController.h"
+#include "../Player/QuestComponent.h"
 #include "PlayerCharacter.h"
 #include "AIController.h"
 #include "BrainComponent.h"
@@ -58,6 +60,7 @@ void ANPCCharacter::InitAttributes()
 	mIsEssential = Info->IsEssential;
 	mReviveTime = Info->ReviveTime;
 	mDialogueRow = Info->DialogueRow;
+	mQuestRow = Info->QuestRow;
 }
 
 const FNPCCharacterTableRow* ANPCCharacter::FindTableRow() const
@@ -108,7 +111,28 @@ void ANPCCharacter::Interact(APlayerCharacter* Player)
 	AElmPlayerController* PlayerController = Player->GetController<AElmPlayerController>();
 
 	if (IsValid(PlayerController))
-		PlayerController->GetDialogue()->StartDialogue(this, mDialogueRow);
+		PlayerController->GetDialogue()->StartDialogue(this, ChooseDialogueRow(PlayerController->GetQuest()));
+}
+
+FName ANPCCharacter::ChooseDialogueRow(const UQuestComponent* Quest) const
+{
+	// 퀘스트가 없는 NPC(QuestRow = None)이면 FindQuestInfo가 nullptr을 돌려준다.
+	const FQuestTableRow* QuestInfo = Quest->FindQuestInfo(mQuestRow);
+
+	if (!QuestInfo)
+		return mDialogueRow;
+
+	// 받기 전에는 평소 대사(의뢰 내용)로 시작하고, 그 대화를 끝까지 들으면 퀘스트를 받는다.
+	// 받은 뒤에는 같은 의뢰를 다시 듣지 않도록 진행 상태에 맞는 대사로 시작한다. 그 대사를 비워 두면 평소 대사를 쓴다.
+	switch (Quest->GetQuestState(mQuestRow))
+	{
+	case EQuestState::InProgress:
+		return QuestInfo->ProgressDialogue.IsNone() ? mDialogueRow : QuestInfo->ProgressDialogue;
+	case EQuestState::Completed:
+		return QuestInfo->CompleteDialogue.IsNone() ? mDialogueRow : QuestInfo->CompleteDialogue;
+	default:
+		return mDialogueRow;
+	}
 }
 
 void ANPCCharacter::BeginTalk(APawn* Listener)

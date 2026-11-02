@@ -16,6 +16,26 @@ struct FInventorySaveEntry
 	UPROPERTY() int32 Upgrade = 0;
 };
 
+// 퀘스트 진행 상태
+UENUM(BlueprintType)
+enum class EQuestState : uint8
+{
+	None,		// 받지 않음 (받은 퀘스트 목록에 없다)
+	InProgress,
+	Completed
+};
+
+// 받은 퀘스트 하나의 진행도. 값만 담고 있어서 퀘스트 컴포넌트와 메모가 같은 구조체를 그대로 복사해 쓴다.
+USTRUCT(BlueprintType)
+struct FQuestProgress
+{
+	GENERATED_BODY()
+
+	UPROPERTY() FName QuestRow;									// DT_Quest 행 이름
+	UPROPERTY() EQuestState State = EQuestState::InProgress;
+	UPROPERTY() int32 KillCount = 0;							// 지금까지 잡은 목표 몬스터 수
+};
+
 UCLASS()
 class ELMCHRONICLES_API UElmSaveGame : public USaveGame
 {
@@ -34,5 +54,8 @@ public:
 	UPROPERTY() float Exp = 0.f;
 	UPROPERTY() float Gold = 0.f;
 
-	// 나중에 추가: 장착 장비, 위치, 퀘스트 진행도 ...
+	// 받은 퀘스트 (진행 중 + 완료)
+	UPROPERTY() TArray<FQuestProgress> Quests;
+
+	// 나중에 추가: 장착 장비, 위치 ...
 };

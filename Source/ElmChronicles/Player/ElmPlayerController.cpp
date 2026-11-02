@@ -4,6 +4,7 @@
 #include "ElmPlayerController.h"
 #include "DialogueComponent.h"
 #include "InteractionComponent.h"
+#include "QuestComponent.h"
 #include "../Input/DefaultInput.h"
 #include "../Input/DialogueInput.h"
 #include "../UI/Game/PlayerHUDWidget.h"
@@ -22,6 +23,8 @@ AElmPlayerController::AElmPlayerController()
 	mInteraction = CreateDefaultSubobject<UInteractionComponent>(TEXT("InteractionComponent"));
 	// 대화(대화창, 대화 중 입력, 다음 줄)도 컴포넌트가 맡는다.
 	mDialogue = CreateDefaultSubobject<UDialogueComponent>(TEXT("DialogueComponent"));
+	// 퀘스트(받기, 처치 세기, 완료와 보상)도 컴포넌트가 맡는다.
+	mQuest = CreateDefaultSubobject<UQuestComponent>(TEXT("QuestComponent"));
 
 	static ConstructorHelpers::FClassFinder<UPlayerHUDWidget>
 		PlayerHUDWidgetClass(TEXT("/Script/UMGEditor.WidgetBlueprint'/Game/UI/Game/WBP_PlayerHUD.WBP_PlayerHUD_C'"));
@@ -117,6 +120,9 @@ void AElmPlayerController::SetupInputComponent()
 	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Menu")),
 		ETriggerEvent::Started, this, &AElmPlayerController::ToggleMenu);
 
+	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Quest")),
+		ETriggerEvent::Started, this, &AElmPlayerController::ToggleQuest);
+
 	// IMC_Dialogue에만 매핑되어 있으므로 대화 중에만 들어온다. 대화용 액션은 UDialogueInput이 들고 있다.
 	EnhancedInputComponent->BindAction(DialogueInputCDO->FindInputAction(TEXT("DialogueNext")),
 		ETriggerEvent::Started, mDialogue.Get(), &UDialogueComponent::AdvanceDialogue);
@@ -134,6 +140,21 @@ void AElmPlayerController::SetInventoryOpen(bool Open)
 		return;
 
 	mPlayerHUDWidget->SetInventoryVisible(Open);
+	RefreshInputMode();
+}
+
+void AElmPlayerController::ToggleQuest()
+{
+	if (mPlayerHUDWidget)
+		SetQuestOpen(!mPlayerHUDWidget->IsQuestVisible());
+}
+
+void AElmPlayerController::SetQuestOpen(bool Open)
+{
+	if (!mPlayerHUDWidget)
+		return;
+
+	mPlayerHUDWidget->SetQuestVisible(Open);
 	RefreshInputMode();
 }
 
