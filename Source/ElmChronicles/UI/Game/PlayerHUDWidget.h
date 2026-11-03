@@ -42,9 +42,13 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UQuestWidget> mQuestWidget;
 
-	// B 키 메뉴. 다른 창보다 위에 그려지도록 WBP_PlayerHUD Canvas의 마지막 자식으로 둔다.
+	// B 키 메뉴. 다른 창보다 위에 그려지도록 WBP_PlayerHUD Canvas의 뒤쪽(확인 상자 바로 앞)에 둔다.
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UMenuWidget> mMenuWidget;
+
+	// 예 / 아니요 확인 상자. 어느 창보다도 위에 떠야 하므로 Canvas의 마지막 자식으로 둔다.
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UConfirmWidget> mConfirmWidget;
 
 protected:
 	virtual void NativeOnInitialized();
@@ -60,8 +64,12 @@ public:
 	bool IsMenuVisible() const;
 	void SetQuestVisible(bool Visible);
 	bool IsQuestVisible() const;
-	// 커서가 필요한 창이 하나라도 열려 있는지
+	// 커서가 필요한 창(확인 상자 포함)이 하나라도 열려 있는지
 	bool IsAnyWindowOpen() const;
+	// 확인 상자를 연다.
+	void OpenConfirm(const FText& Message, FSimpleDelegate OnYes);
+	void CloseConfirm();
+	bool IsConfirmVisible() const;
 	// 상호작용 안내 문구를 띄운다. ActionText가 비어 있으면 숨긴다.
 	void SetInteractPrompt(const FText& ActionText);
 	// 대화창에 한 줄을 띄운다. 숨겨져 있었으면 보이게 한다.

@@ -2,6 +2,7 @@
 
 
 #include "PlayerHUDWidget.h"
+#include "ConfirmWidget.h"
 #include "DialogueWidget.h"
 #include "InventoryWidget.h"
 #include "ItemInfoWidget.h"
@@ -118,7 +119,27 @@ bool UPlayerHUDWidget::IsQuestVisible() const
 bool UPlayerHUDWidget::IsAnyWindowOpen() const
 {
 	// 나중에 스킬창이 생기면 여기에 || 로 추가한다.
-	return IsInventoryVisible() || IsMenuVisible() || IsQuestVisible();
+	// 확인 상자는 창이 없을 때(Alt+F4)도 뜨므로, 그때도 커서가 보이게 같이 본다.
+	return IsInventoryVisible() || IsMenuVisible() || IsQuestVisible() || IsConfirmVisible();
+}
+
+void UPlayerHUDWidget::OpenConfirm(const FText& Message, FSimpleDelegate OnYes)
+{
+	// SetMenuVisible과 같은 이유로 정보창을 닫는다. (아이콘 위에 마우스를 둔 채 Alt+F4를 누르면 남는다)
+	EnableItemInfoWidget(false);
+
+	mConfirmWidget->Open(Message, MoveTemp(OnYes));
+}
+
+void UPlayerHUDWidget::CloseConfirm()
+{
+	mConfirmWidget->Close();
+}
+
+bool UPlayerHUDWidget::IsConfirmVisible() const
+{
+	// IsInventoryVisible과 같은 이유로 직접 설정한 값과 비교한다.
+	return mConfirmWidget->GetVisibility() == ESlateVisibility::Visible;
 }
 
 void UPlayerHUDWidget::SetInteractPrompt(const FText& ActionText)

@@ -64,7 +64,17 @@ public:
 	void ToggleMenu();
 	// 메뉴를 열면 게임을 멈추고, 닫으면 다시 움직인다. 메뉴의 "계속하기" / "귀환" 버튼도 이것으로 닫는다.
 	void SetMenuOpen(bool Open);
+	// 확인 상자를 열고 닫는다. 창 위에서든 창 없이든, 열려 있는 동안 게임을 멈추고 커서를 띄운다.
+	// 확인 상자의 "예" / "아니요"도 CloseConfirm으로 닫는다.
+	void OpenConfirm(const FText& Message, FSimpleDelegate OnYes);
+	void CloseConfirm();
+	// "게임을 종료할까요?"를 묻는다. 메뉴의 게임 종료와 Alt+F4가 같이 쓴다.
+	void RequestQuit();
 
 private:
 	void RefreshInputMode();
+	// Alt+F4 / 창의 X. false를 돌려주면 창이 닫히지 않는다. (UGameViewportClient::OnWindowCloseRequested)
+	bool OnWindowCloseRequested();
+	// 종료 확인 상자에서 "예"를 누르면 불린다.
+	void OnQuitConfirmed();
 };

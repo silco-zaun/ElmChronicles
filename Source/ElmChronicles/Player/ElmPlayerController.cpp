@@ -8,9 +8,11 @@
 #include "../Input/DefaultInput.h"
 #include "../Input/DialogueInput.h"
 #include "../UI/Game/PlayerHUDWidget.h"
+#include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "UObject/ConstructorHelpers.h"
 
 AElmPlayerController::AElmPlayerController()
@@ -55,12 +57,23 @@ void AElmPlayerController::BeginPlay()
 
 			// 시작할 때는 인벤토리를 닫은 상태 + 게임 전용 입력으로 맞춘다.
 			SetInventoryOpen(false);
+
+			// Alt+F4 / 창의 X로 닫을 때 바로 끄지 않고 메뉴의 게임 종료처럼 한 번 묻는다.
+			// 뷰포트 클라이언트는 레벨을 옮겨도 남으므로, EndPlay에서 풀고 새 레벨의 컨트롤러가 다시 연결한다.
+			if (UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport())
+				ViewportClient->OnWindowCloseRequested().BindUObject(this, &AElmPlayerController::OnWindowCloseRequested);
 		}
 	}
 }
 
 void AElmPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// 다른 곳이 연결해 둔 것까지 풀지 않게, 이 컨트롤러가 연결한 경우만 푼다.
+	UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
+
+	if (ViewportClient && ViewportClient->OnWindowCloseRequested().IsBoundToObject(this))
+		ViewportClient->OnWindowCloseRequested().Unbind();
+
 	if (mPlayerHUDWidget)
 	{
 		mPlayerHUDWidget->RemoveFromParent();
@@ -160,8 +173,10 @@ void AElmPlayerController::SetQuestOpen(bool Open)
 
 void AElmPlayerController::ToggleMenu()
 {
-	if (mPlayerHUDWidget)
-		SetMenuOpen(!mPlayerHUDWidget->IsMenuVisible());
+	if (!mPlayerHUDWidget)
+		return;
+
+	SetMenuOpen(!mPlayerHUDWidget->IsMenuVisible());
 }
 
 void AElmPlayerController::SetMenuOpen(bool Open)
@@ -170,12 +185,50 @@ void AElmPlayerController::SetMenuOpen(bool Open)
 		return;
 
 	mPlayerHUDWidget->SetMenuVisible(Open);
-
-	// 멈추면 월드의 Tick과 타이머가 모두 선다. (몬스터, 애니메이션, 사망 후 병원 이동 타이머까지)
-	// 입력은 "Trigger when Paused"를 켠 액션(IA_Menu)만 들어온다.
-	// 그래서 메뉴 키로 다시 닫을 수 있고 이동 / 공격 / 인벤토리 키 / 상호작용 키는 막힌다.
-	SetPause(Open);
 	RefreshInputMode();
+}
+
+void AElmPlayerController::OpenConfirm(const FText& Message, FSimpleDelegate OnYes)
+{
+	if (!mPlayerHUDWidget)
+		return;
+
+	mPlayerHUDWidget->OpenConfirm(Message, MoveTemp(OnYes));
+	RefreshInputMode();
+}
+
+void AElmPlayerController::CloseConfirm()
+{
+	if (!mPlayerHUDWidget)
+		return;
+
+	mPlayerHUDWidget->CloseConfirm();
+	RefreshInputMode();
+}
+
+void AElmPlayerController::RequestQuit()
+{
+	OpenConfirm(NSLOCTEXT("ElmMenu", "QuitConfirm", "게임을 종료할까요?"),
+		FSimpleDelegate::CreateUObject(this, &AElmPlayerController::OnQuitConfirmed));
+}
+
+bool AElmPlayerController::OnWindowCloseRequested()
+{
+	// HUD가 없으면 물을 곳이 없으니 그냥 닫는다. (막기만 하면 아무것도 뜨지 않은 채 창이 닫히지 않는다)
+	if (!mPlayerHUDWidget)
+		return true;
+
+	// false = 창을 닫지 않는다. 대신 확인 상자를 띄우고, "예"를 누르면 OnQuitConfirmed가 끈다.
+	RequestQuit();
+	return false;
+}
+
+void AElmPlayerController::OnQuitConfirmed()
+{
+	// 내부적으로 "quit" 콘솔 명령을 보낸다. 패키지 게임은 프로그램이 닫히고, PIE는 플레이만 끝난다(에디터는 그대로).
+	// 창 닫기 요청을 거치지 않고 끝나므로 OnWindowCloseRequested가 다시 불리지 않는다.
+	// 마지막 인자 false: 플랫폼 제약을 무시하지 않는다("quit force"를 쓰지 않는다). PC에서는 차이가 없다.
+	UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
 }
 
 void AElmPlayerController::RefreshInputMode()

@@ -6,7 +6,6 @@
 #include "../../GameModes/ElmGameModeBase.h"
 #include "../../Player/ElmPlayerController.h"
 #include "../../Subsystem/SaveSubsystem.h"
-#include "Kismet/KismetSystemLibrary.h"
 
 UMenuWidget::UMenuWidget(const FObjectInitializer& ObjectInitializer) :
 	Super(ObjectInitializer)
@@ -22,16 +21,13 @@ void UMenuWidget::NativeOnInitialized()
 	mRecallButton->OnClicked.AddDynamic(this, &UMenuWidget::OnRecallClicked);
 	mSaveButton->OnClicked.AddDynamic(this, &UMenuWidget::OnSaveClicked);
 	mQuitButton->OnClicked.AddDynamic(this, &UMenuWidget::OnQuitClicked);
-	mQuitYesButton->OnClicked.AddDynamic(this, &UMenuWidget::OnQuitYesClicked);
-	mQuitNoButton->OnClicked.AddDynamic(this, &UMenuWidget::OnQuitNoClicked);
 }
 
 void UMenuWidget::Refresh()
 {
-	// 지난번에 띄운 문구와 열어 둔 확인 상자는 지운다.
+	// 지난번에 띄운 문구는 지운다.
 	SetMessage(FText::GetEmpty());
-	ShowQuitConfirm(false);
-
+	
 	// 메뉴가 열려 있는 동안은 게임이 멈춰 있으므로, 열 때 한 번 정하면 닫을 때까지 맞다.
 	const APlayerCharacter* Player = GetOwningPlayerPawn<APlayerCharacter>();
 	const AElmGameModeBase* GameMode = GetWorld()->GetAuthGameMode<AElmGameModeBase>();
@@ -80,20 +76,9 @@ void UMenuWidget::OnSaveClicked()
 
 void UMenuWidget::OnQuitClicked()
 {
-	// 잘못 눌러도 바로 꺼지지 않게 한 번 더 묻는다. 버튼 목록 자리에 확인 상자를 띄운다.
-	ShowQuitConfirm(true);
-}
-
-void UMenuWidget::OnQuitYesClicked()
-{
-	// 내부적으로 "quit" 콘솔 명령을 보낸다. 패키지 게임은 프로그램이 닫히고, PIE는 플레이만 끝난다(에디터는 그대로).
-	// 마지막 인자 false: 플랫폼 제약을 무시하지 않는다("quit force"를 쓰지 않는다). PC에서는 차이가 없다.
-	UKismetSystemLibrary::QuitGame(this, GetOwningPlayer(), EQuitPreference::Quit, false);
-}
-
-void UMenuWidget::OnQuitNoClicked()
-{
-	ShowQuitConfirm(false);
+	// Alt+F4와 같은 길로 묻는다. 확인 상자는 메뉴 위에 뜨고, "아니요"면 메뉴로 돌아온다.
+	if (AElmPlayerController* PlayerController = GetOwningPlayer<AElmPlayerController>())
+		PlayerController->RequestQuit();
 }
 
 void UMenuWidget::SetMessage(const FText& Message)
@@ -101,11 +86,4 @@ void UMenuWidget::SetMessage(const FText& Message)
 	mMessageText->SetText(Message);
 	// 글자일 뿐이므로 클릭을 가로채지 않게 한다. 비어 있으면 자리도 차지하지 않게 접는다.
 	mMessageText->SetVisibility(Message.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
-}
-
-void UMenuWidget::ShowQuitConfirm(bool Show)
-{
-	// 둘 중 하나만 보인다. 상자 자체는 클릭을 받을 필요가 없고 안의 버튼만 받으면 되므로 SelfHitTestInvisible.
-	mMainBox->SetVisibility(Show ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
-	mQuitConfirmBox->SetVisibility(Show ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
 }
