@@ -2,6 +2,7 @@
 
 
 #include "PlayerHUDWidget.h"
+#include "CelebrationWidget.h"
 #include "ConfirmWidget.h"
 #include "DialogueWidget.h"
 #include "InventoryWidget.h"
@@ -38,31 +39,41 @@ void UPlayerHUDWidget::SetItemInfo(UItemObject* Item)
 	mItemInfoWidget->SetItemInfo(Item->GetItemInfo(), Item->GetItemUpgrade());
 }
 
-void UPlayerHUDWidget::EnableItemInfoWidget(bool Enable)
+void UPlayerHUDWidget::ShowItemInfoWidget(bool IsShow)
 {
-	if (Enable)
-		mItemInfoWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	if (IsShow)
+	{
+		// 인벤토리 창은 드래그로 옮길 수 있으므로 띄울 때마다 자리를 다시 잡는다.
+		PlaceItemInfoNextToInventory();
+
+		// 정보창은 보이기만 한다. SelfHitTestInvisible이면 자식(배경 등)이 마우스를 받아서,
+		// 정보창이 아이콘과 겹칠 때 아이콘의 Hover를 빼앗아 깜빡인다. 그래서 자식까지 통과시킨다.
+		mItemInfoWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
 	else
 		mItemInfoWidget->SetVisibility(ESlateVisibility::Collapsed);
 }
 
-void UPlayerHUDWidget::ComputeItemInfoLocation(const FPointerEvent& InMouseEvent)
+void UPlayerHUDWidget::PlaceItemInfoNextToInventory()
 {
-	// ItemInfoWidget의 CanvasPanelSlot을 구한다.
 	UCanvasPanelSlot* PanelSlot = Cast<UCanvasPanelSlot>(mItemInfoWidget->Slot);
-
-	// ScreenSpace에서의 마우스 위치를 구한다.
-	FVector2D MousePos = InMouseEvent.GetScreenSpacePosition();
-
-	// ItemInfoWidget의 부모 Panel을 구한다.
 	UPanelWidget* ParentPanel = mItemInfoWidget->GetParent();
 
-	// 마우스 위치를 이 위젯 내부에서의 위치로 구한다.
-	FVector2D WidgetPos = ParentPanel->GetCachedGeometry().AbsoluteToLocal(MousePos);
+	if (!PanelSlot || !ParentPanel)
+		return;
 
-	// 정확하게 마우스의 위치로 나오기 때문에 이 위치에서 오른쪽으로
-	// 약간 떨어지게 좌표를 지정한다.
-	WidgetPos.X += 20.0;
+	// 아래 위치는 Canvas 왼쪽 위 기준으로 계산하므로 앵커를 왼쪽 위로 고정한다. (WBP 앵커가 바뀌어도 화면 밖으로 나가지 않는다)
+	// Alignment (1, 0)이면 Position이 정보창의 오른쪽 위 모서리가 되어, 정보창 크기를 몰라도 오른쪽 끝을 인벤토리 왼쪽에 맞출 수 있다.
+	PanelSlot->SetAnchors(FAnchors(0.f, 0.f));
+	PanelSlot->SetAlignment(FVector2D(1.0, 0.0));
+
+	// 인벤토리 창의 왼쪽 위 모서리를 화면 좌표로 구한다.
+	// 타이틀바 드래그로 옮긴 양(RenderTranslation)도 Geometry에 들어 있으므로 옮긴 자리를 따라간다.
+	const FVector2D InventoryTopLeft = mInventoryWidget->GetCachedGeometry().LocalToAbsolute(FVector2D::ZeroVector);
+
+	// Canvas 기준 좌표로 바꾸고, 인벤토리와 딱 붙지 않게 조금 왼쪽으로 띄운다.
+	FVector2D WidgetPos = ParentPanel->GetCachedGeometry().AbsoluteToLocal(InventoryTopLeft);
+	WidgetPos.X -= 8.0;
 
 	PanelSlot->SetPosition(WidgetPos);
 }
@@ -74,7 +85,7 @@ void UPlayerHUDWidget::SetInventoryVisible(bool Visible)
 	// 아이콘 위에 마우스를 올린 채로 창을 닫으면 MouseLeave가 오지 않는다.
 	// 그래서 정보창도 같이 닫는다.
 	if (!Visible)
-		EnableItemInfoWidget(false);
+		ShowItemInfoWidget(false);
 }
 
 bool UPlayerHUDWidget::IsInventoryVisible() const
@@ -92,7 +103,7 @@ void UPlayerHUDWidget::SetMenuVisible(bool Visible)
 		mMenuWidget->Refresh();
 
 		// 아이콘 위에 마우스를 올린 채로 메뉴를 열면 MouseLeave가 오지 않아 정보창이 남는다.
-		EnableItemInfoWidget(false);
+		ShowItemInfoWidget(false);
 	}
 
 	mMenuWidget->SetVisibility(Visible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
@@ -126,7 +137,7 @@ bool UPlayerHUDWidget::IsAnyWindowOpen() const
 void UPlayerHUDWidget::OpenConfirm(const FText& Message, FSimpleDelegate OnYes)
 {
 	// SetMenuVisible과 같은 이유로 정보창을 닫는다. (아이콘 위에 마우스를 둔 채 Alt+F4를 누르면 남는다)
-	EnableItemInfoWidget(false);
+	ShowItemInfoWidget(false);
 
 	mConfirmWidget->Open(Message, MoveTemp(OnYes));
 }
@@ -174,4 +185,9 @@ void UPlayerHUDWidget::SetDialogueVisible(bool Visible)
 	// 대사 넘기기는 Enhanced Input(마우스 왼쪽 포함)이 받는다. 대화창은 보이기만 하고 클릭을 가로채지 않게 한다.
 	// SelfHitTestInvisible은 자기만 통과시키고 자식(배경 Border)은 클릭을 받으므로, 자식까지 통과시키는 HitTestInvisible을 쓴다.
 	mDialogueWidget->SetVisibility(Visible ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+}
+
+void UPlayerHUDWidget::ShowCelebration(const FText& Title, const FText& SubText)
+{
+	mCelebrationWidget->Push(Title, SubText);
 }

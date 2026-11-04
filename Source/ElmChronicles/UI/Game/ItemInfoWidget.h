@@ -39,7 +39,7 @@ protected:
 	TObjectPtr<UTextBlock> mSellPriceText;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (BindWidget))
-	TObjectPtr<UListView> mOptionList;
+	TObjectPtr<UTextBlock> mOptionText;
 
 public:
 	void SetItemInfo(const FItemTableRow& Info, int32 Upgrade);

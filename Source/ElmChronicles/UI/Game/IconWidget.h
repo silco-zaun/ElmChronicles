@@ -31,8 +31,6 @@ protected:
 	UPROPERTY()	class USlotWidget* mParentSlot = nullptr;
 	UPROPERTY() UTexture2D* mIconTexture = nullptr;
 
-	bool mIsHovered = false;
-
 public:
 	void SetParentSlot(class USlotWidget* ParentSlot)
 	{
@@ -44,7 +42,6 @@ private:
 protected:
 	virtual void NativeOnInitialized();
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent);
-	virtual FReply NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent);
 	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation);
 	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent);
 	virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent);

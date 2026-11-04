@@ -2,7 +2,6 @@
 
 
 #include "ItemInfoWidget.h"
-#include "ItemOptionEntryObject.h"
 #include "../../Data/Tables/ItemTableRow.h"
 
 
@@ -23,20 +22,16 @@ void UItemInfoWidget::SetItemInfo(const FItemTableRow& Info, int32 Upgrade)
 	mBuyPriceText->SetText(FText::FromString(FString::Printf(TEXT("구매가격 : %d"), Info.BuyPrice)));
 	mSellPriceText->SetText(FText::FromString(FString::Printf(TEXT("판매가격 : %d"), Info.SellPrice)));
 
-	// 옵션 목록을 비워준다.
-	mOptionList->ClearListItems();
-
-	UE_LOG(LogTestDebug, Warning, TEXT("Option Num : %d"), Info.Options.Num());
-
-	// 옵션 수만큼 반복한다.
-	for (auto Value : Info.Options)
+	// 옵션을 한 줄씩 이어 붙인 뒤 한 번에 넣는다. (반복문 안에서 SetText하면 마지막 옵션만 남는다)
+	FString OptionString;
+	for (const FItemOption& Option : Info.Options)
 	{
-		UItemOptionEntryObject* EntryObject = NewObject<UItemOptionEntryObject>();
-		EntryObject->SetOptionName(StaticEnum<EItemOptionType>()->GetNameStringByValue((int64)Value.Type));
-		EntryObject->SetOptionValue(Value.Value);
-
-		mOptionList->AddItem(EntryObject);
+		OptionString += FString::Printf(TEXT("%s : %.1f\n"),
+			*StaticEnum<EItemOptionType>()->GetNameStringByValue((int64)Option.Type),
+			Option.Value);
 	}
+	OptionString.TrimEndInline();	// 마지막 줄의 \n을 지운다.
+	mOptionText->SetText(FText::FromString(OptionString));
 }
 
 void UItemInfoWidget::NativeOnInitialized()

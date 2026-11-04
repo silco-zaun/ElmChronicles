@@ -33,6 +33,8 @@ protected:
 	// 기본 공격 어빌리티. DT_Player의 AttackAbility이고, 비어 있으면 Melee다.
 	// 테이블에서 Soft로 불러온 BP 어빌리티가 GC되지 않도록 UPROPERTY로 잡아 둔다.
 	UPROPERTY()	TSubclassOf<class UElmGameplayAbility> mAttackAbility;
+	// 레벨업 때 발밑에서 솟는 이펙트. 플레이어 BP가 없어서 생성자에서 경로로 찾는다.
+	UPROPERTY(EditAnywhere, Category = "Player") TObjectPtr<class UNiagaraSystem> mLevelUpEffect;
 
 protected:
 	virtual void BeginPlay() override;
@@ -64,6 +66,8 @@ private:
 	// DT_Player 행으로 외형과 기본 공격(서버 / 클라 모두),
 	// 능력치(서버만)를 적용한다. 테이블이 로드된 뒤에 불린다.
 	void InitAttributes();
+	// 경험치를 받으면 PlayerAttributeSet이 부른다. 필요 경험치를 채웠으면 레벨을 올린다.
+	void OnExpGained();
 
 public:
 	bool AddInventoryItem(FName ItemKey);

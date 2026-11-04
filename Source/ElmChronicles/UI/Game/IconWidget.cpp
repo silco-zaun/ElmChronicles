@@ -55,20 +55,6 @@ FReply UIconWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 	return FReply::Unhandled();
 }
 
-FReply UIconWidget::NativeOnMouseMove(const FGeometry& InGeometry,
-	const FPointerEvent& InMouseEvent)
-{
-	if (GetVisibility() == ESlateVisibility::Collapsed)
-		return FReply::Unhandled();
-	else if (!mIsHovered)
-		return FReply::Unhandled();
-
-	if (UPlayerHUDWidget* PlayerHUD = GetPlayerHUD())
-		PlayerHUD->ComputeItemInfoLocation(InMouseEvent);
-
-	return FReply::Handled();
-}
-
 void UIconWidget::NativeOnDragDetected(const FGeometry& InGeometry,
 	const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
 {
@@ -96,14 +82,12 @@ void UIconWidget::NativeOnDragDetected(const FGeometry& InGeometry,
 void UIconWidget::NativeOnMouseEnter(const FGeometry& InGeometry,
 	const FPointerEvent& InMouseEvent)
 {
-	mIsHovered = true;
-
 	UPlayerHUDWidget* PlayerHUD = GetPlayerHUD();
 
 	if (!PlayerHUD)
 		return;
 
-	PlayerHUD->EnableItemInfoWidget(true);
+	PlayerHUD->ShowItemInfoWidget(true);
 
 	// 아이템 정보를 ItemInfoWidget에 전달해서 정보를 갱신한다.
 	// 이 아이콘이 소속되어 있는 SlotWidget이 어떤 UI에 속한
@@ -124,10 +108,8 @@ void UIconWidget::NativeOnMouseEnter(const FGeometry& InGeometry,
 
 void UIconWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
 {
-	mIsHovered = false;
-
 	if (UPlayerHUDWidget* PlayerHUD = GetPlayerHUD())
-		PlayerHUD->EnableItemInfoWidget(false);
+		PlayerHUD->ShowItemInfoWidget(false);
 }
 
 void UIconWidget::SetIconImage(UTexture2D* Image)

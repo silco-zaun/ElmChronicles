@@ -24,6 +24,7 @@ Unreal Engine 5.8 C++ 싱글플레이 액션 RPG. 런타임 모듈은 `ElmChroni
 - `.sln`/`.slnx`는 gitignore 대상(엔진이 생성)이다.
 - 자동화 테스트나 린트 설정은 없다. 검증은 PIE로 한다. 시작 맵은 `/Game/Maps/Test`다(`DefaultEngine.ini`).
 - `.mcp.json`의 `unreal-mcp`(`http://127.0.0.1:8000/mcp`)는 `ModelContextProtocol` 플러그인이 띄우는 서버라서 에디터가 실행 중일 때만 연결된다.
+- 렌더링은 Substrate(`DefaultEngine.ini` `r.Substrate=True`)라서 머티리얼 Blend Mode 이름이 예전과 다르다. Translucent는 `TranslucentGreyTransmittance`, Modulate는 `ColoredTransmittanceOnly`다(엔진 `EngineTypes.h`에서 같은 값). 가이드에 예전 이름을 적지 않는다(2026-11-04).
 
 ## 아키텍처
 

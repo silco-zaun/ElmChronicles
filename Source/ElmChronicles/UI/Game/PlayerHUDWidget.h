@@ -42,6 +42,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UQuestWidget> mQuestWidget;
 
+	// 화면 가운데 축하 문구. 메뉴 / 확인 상자가 그 위에 그려지도록 Canvas에서 메뉴보다 앞에 둔다.
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UCelebrationWidget> mCelebrationWidget;
+
 	// B 키 메뉴. 다른 창보다 위에 그려지도록 WBP_PlayerHUD Canvas의 뒤쪽(확인 상자 바로 앞)에 둔다.
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UMenuWidget> mMenuWidget;
@@ -56,8 +60,7 @@ protected:
 public:
 	void SetPlayerName(const FString& Name);
 	void SetItemInfo(class UItemObject* Item);
-	void EnableItemInfoWidget(bool Enable = true);
-	void ComputeItemInfoLocation(const FPointerEvent& InMouseEvent);
+	void ShowItemInfoWidget(bool IsShow = true);
 	void SetInventoryVisible(bool Visible);
 	bool IsInventoryVisible() const;
 	void SetMenuVisible(bool Visible);
@@ -75,4 +78,10 @@ public:
 	// 대화창에 한 줄을 띄운다. 숨겨져 있었으면 보이게 한다.
 	void SetDialogueLine(const FString& Speaker, const FString& Text);
 	void SetDialogueVisible(bool Visible);
+	// 화면 가운데 축하 문구를 띄운다. 앞의 문구가 떠 있으면 끝난 뒤에 이어서 띄운다.
+	void ShowCelebration(const FText& Title, const FText& SubText);
+
+private:
+	// 정보창을 인벤토리 창 바로 왼쪽에 붙인다.
+	void PlaceItemInfoNextToInventory();
 };

@@ -57,9 +57,6 @@ void UGameplayAbility_Attack::ActivateAbility(
 	const FName SectionName = Montage->GetSectionName(mComboIndex % SectionCount);
 	mComboIndex = (mComboIndex + 1) % SectionCount;
 
-	UE_LOG(LogTestDebug, Warning, TEXT("Montage : %s, SectionCount : %d, Section : %s, ComboIndex : %d"),
-		*Montage->GetName(), SectionCount , *SectionName.ToString(), mComboIndex);
-
 	// 새 타가 시작되면 콤보 구간은 닫힌다. 이번 섹션의 ComboOpen 노티파이가 와야 다시 열린다.
 	mIsComboWindow = false;
 
@@ -97,22 +94,16 @@ void UGameplayAbility_Attack::OnHitEvent(FGameplayEventData Payload)
 
 void UGameplayAbility_Attack::OnComboOpen(FGameplayEventData Payload)
 {
-	UE_LOG(LogTestDebug, Warning, TEXT("UGameplayAbility_Attack::OnComboOpen"));
-
 	mIsComboWindow = true;
 }
 
 void UGameplayAbility_Attack::OnComboClose(FGameplayEventData Payload)
 {
-	UE_LOG(LogTestDebug, Warning, TEXT("UGameplayAbility_Attack::OnComboClose"));
-
 	mIsComboWindow = false;
 }
 
 void UGameplayAbility_Attack::OnMontageEnded()
 {
-	UE_LOG(LogTestDebug, Warning, TEXT("UGameplayAbility_Attack::OnMontageEnded"));
-
 	// 콤보로 이어지지 못하고 몽타주가 끝났다. (자연 종료, 피격, 취소) 다음 공격은 1타부터.
 	// 콤보로 재발동할 때는 몽타주 태스크가 델리게이트를 먼저 끊기 때문에 이 함수가 불리지 않는다.
 	mComboIndex = 0;

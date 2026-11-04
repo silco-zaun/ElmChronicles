@@ -2,6 +2,7 @@
 
 
 #include "QuestComponent.h"
+#include "ElmPlayerController.h"
 #include "../AbilitySystem/Attributes/PlayerAttributeSet.h"
 #include "../AbilitySystem/Effects/GameplayEffect_Reward.h"
 #include "../AbilitySystem/ElmGameplayTags.h"
@@ -9,6 +10,7 @@
 #include "../Data/Tables/QuestTableRow.h"
 #include "../Subsystem/AssetSubsystem.h"
 #include "../Subsystem/SaveSubsystem.h"
+#include "../UI/Game/PlayerHUDWidget.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Engine/GameInstance.h"
@@ -155,6 +157,14 @@ void UQuestComponent::CompleteQuest(FQuestProgress& Progress, const FQuestTableR
 	Progress.State = EQuestState::Completed;
 
 	UE_LOG(LogTestDebug, Warning, TEXT("퀘스트 완료 : %s"), *Info.Title);
+
+	// 보상보다 먼저 띄운다. 보상 경험치로 레벨이 오르면 GiveReward 안에서 "LEVEL UP!"이 줄을 서므로,
+	// 이 순서여야 "퀘스트 완료" → "LEVEL UP!" 차례로 보인다.
+	const AElmPlayerController* PlayerController = GetOwner<AElmPlayerController>();
+
+	if (IsValid(PlayerController) && PlayerController->GetPlayerHUDWidget())
+		PlayerController->GetPlayerHUDWidget()->ShowCelebration(
+			NSLOCTEXT("ElmQuest", "QuestCompleteTitle", "퀘스트 완료"), FText::FromString(Info.Title));
 
 	GiveReward(Info);
 }

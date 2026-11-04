@@ -26,6 +26,7 @@ void UInventoryWidget::NativeOnInitialized()
 	// 위젯 블루프린트에서 변수여부 체크가 안되어 있을 경우 GetWidgetFromName 함수를
 	// 이용하여 배치된 위젯이 객체를 얻어올 수 있다.
 	mTitleBar = GetWidgetFromName(TEXT("TitleBar"));	// 어떤 종류의 위젯이든 받을 수 있다
+
 	if (!mTitleBar)
 		UE_LOG(LogTestDebug, Error, TEXT("InventoryWidget : TitleBar 위젯을 찾지 못했습니다."));
 

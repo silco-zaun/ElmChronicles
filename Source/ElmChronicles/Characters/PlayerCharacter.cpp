@@ -19,12 +19,16 @@
 #include "../Save/ElmSaveGame.h"
 #include "../Subsystem/AssetSubsystem.h"
 #include "../Subsystem/SaveSubsystem.h"
+#include "../UI/Game/PlayerHUDWidget.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/GameInstance.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "Engine/GameInstance.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "UObject/ConstructorHelpers.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -55,6 +59,13 @@ APlayerCharacter::APlayerCharacter()
 	GetMesh()->SetRelativeRotation(FRotator(0.0, -90.0, 0.0));
 
 	mInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+	
+	// 레벨업 이펙트. 에셋이 없으면 이펙트 없이 레벨만 오른다.
+	static ConstructorHelpers::FObjectFinder<UNiagaraSystem>
+		LevelUpEffect(TEXT("/Script/Niagara.NiagaraSystem'/Game/FX/NS_LevelUp.NS_LevelUp'"));
+
+	if (LevelUpEffect.Succeeded())
+		mLevelUpEffect = LevelUpEffect.Object;
 
 	// 선택1. 마우스를 돌리면 캐릭터 몸도 즉시 같이 돎(FPS / TPS 슈터 스타일)
 	//bUseControllerRotationYaw = true;
@@ -231,6 +242,10 @@ void APlayerCharacter::InitAbilitySystem()
 	// 이동속도 / 피격 / 사망 델리게이트 연결. (부모 공통 처리, 재빙의 때 중복 연결도 막아준다)
 	BindAttributeDelegates(ASC, State->GetAttributeSet());
 
+	// 경험치 → 레벨업. AttributeSet은 PlayerState 것이라 다시 빙의해도 남으므로, 먼저 지우고 연결한다.
+	State->GetAttributeSet()->mOnExpGained.RemoveAll(this);
+	State->GetAttributeSet()->mOnExpGained.AddUObject(this, &APlayerCharacter::OnExpGained);
+
 	if (UAssetSubsystem* AssetSubsystem = GetGameInstance()->GetSubsystem<UAssetSubsystem>())
 		AssetSubsystem->CallOrRegisterDataLoaded(this, &APlayerCharacter::InitAttributes);
 }
@@ -297,6 +312,65 @@ void APlayerCharacter::InitAttributes()
 	// 경험치와 골드는 죽어도 그대로 이어진다. (사망 페널티 없음)
 	mASC->SetNumericAttributeBase(UPlayerAttributeSet::GetExpAttribute(), Save->Exp);
 	mASC->SetNumericAttributeBase(UPlayerAttributeSet::GetGoldAttribute(), Save->Gold);
+}
+
+void APlayerCharacter::OnExpGained()
+{
+	UE_LOG(LogTestDebug, Warning, TEXT("APlayerCharacter::OnExpGained"));
+
+	UAssetSubsystem* AssetSubsystem = GetGameInstance()->GetSubsystem<UAssetSubsystem>();
+
+	if (!mASC.IsValid() || !AssetSubsystem)
+		return;
+
+	// Level Attribute는 float라 WriteToSave와 같은 이유로 반올림한다.
+	const int32 OldLevel = FMath::RoundToInt(mASC->GetNumericAttributeBase(UBaseAttributeSet::GetLevelAttribute()));
+	int32 NewLevel = OldLevel;
+	float Exp = mASC->GetNumericAttributeBase(UPlayerAttributeSet::GetExpAttribute());
+
+	// 경험치는 "지금 레벨에서 모은 양"이다. 필요 경험치를 채우면 그만큼 빼고 다음 레벨로 넘어간다.
+	// 퀘스트 보상(300)처럼 한 번에 여러 레벨이 오를 수 있어서 반복한다.
+	for (;;)
+	{
+		const FLevelStatTableRow* Stat =
+			AssetSubsystem->FindRow<FLevelStatTableRow>(FName(*FString::FromInt(NewLevel)));
+
+		// RequiredExp 0 = 최대 레벨. 행이 없거나 경험치가 모자라면 멈춘다.
+		if (!Stat || Stat->RequiredExp <= 0 || Exp < Stat->RequiredExp)
+			break;
+
+		Exp -= Stat->RequiredExp;
+		++NewLevel;
+	}
+
+	if (NewLevel == OldLevel)
+		return;
+
+	const FLevelStatTableRow* NewStat =
+		AssetSubsystem->FindRow<FLevelStatTableRow>(FName(*FString::FromInt(NewLevel)));
+
+	if (!NewStat)
+		return;
+
+	// 새 레벨의 능력치를 넣는다. InitLevelStats가 HP / MP도 가득 채운다. (레벨업 회복)
+	mASC->InitLevelStats(NewLevel, *NewStat);
+	mASC->SetNumericAttributeBase(UPlayerAttributeSet::GetExpAttribute(), Exp);
+
+	UE_LOG(LogTestDebug, Warning, TEXT("레벨업 : %d → %d (남은 경험치 %.0f)"), OldLevel, NewLevel, Exp);
+	
+	// 캡슐(루트)에 붙여 발밑에서 터뜨린다. 캐릭터가 움직여도 따라오고, 끝나면 스스로 사라진다(bAutoDestroy = true).
+	if (mLevelUpEffect)
+		UNiagaraFunctionLibrary::SpawnSystemAttached(mLevelUpEffect, GetRootComponent(), NAME_None,
+			FVector(0.0, 0.0, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), FRotator::ZeroRotator,
+			EAttachLocation::KeepRelativeOffset, true);
+
+	// 축하 문구는 이 캐릭터를 조종하는 플레이어의 화면에 띄운다.
+	AElmPlayerController* PlayerController = GetController<AElmPlayerController>();
+
+	if (IsValid(PlayerController) && PlayerController->GetPlayerHUDWidget())
+		PlayerController->GetPlayerHUDWidget()->ShowCelebration(
+			NSLOCTEXT("ElmHUD", "LevelUpTitle", "LEVEL UP!"),
+			FText::Format(NSLOCTEXT("ElmHUD", "LevelUpSub", "레벨 {0} 달성"), NewLevel));
 }
 
 void APlayerCharacter::OnDamagedBy(AActor* Causer, float Damage)
