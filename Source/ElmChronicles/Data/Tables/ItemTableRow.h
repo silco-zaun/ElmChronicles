@@ -5,19 +5,32 @@
 #include "ItemTableRow.generated.h"
 
 class UTexture2D;
-class UStaticMesh;
 
 UENUM(BlueprintType)
-enum class EItemType : uint8 { Weapon, Armor, Potion, Necklace };
+enum class EItemType : uint8 
+{ 
+	Weapon, 
+	Armor, 
+	Potion, 
+	Necklace
+};
 
 UENUM(BlueprintType)
-enum class EItemUILayerType : uint8 { Single, Layered };
+enum class EItemUILayerType : uint8 
+{
+	Single,
+	Layered 
+};
 
 UENUM(BlueprintType)
 enum class EItemOptionType : uint8
 {
-	PhysicalAttack, MagicalAttack, PhysicalDefense, MagicalDefense,
-	HPRecovery, MPRecovery
+	PhysicalAttack, 
+	MagicalAttack, 
+	PhysicalDefense, 
+	MagicalDefense,
+	HPRecovery, 
+	MPRecovery
 };
 
 USTRUCT(BlueprintType)
@@ -64,9 +77,6 @@ struct FItemTableRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset")
 	TSoftObjectPtr<UTexture2D> Icon;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset")
-	TSoftObjectPtr<UStaticMesh> Mesh;
 };
 
 

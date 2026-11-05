@@ -28,7 +28,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Inventory") TSubclassOf<class USlotWidget> mSlotWidgetClass;
 	UPROPERTY(VisibleAnywhere) TArray<TObjectPtr<class USlotWidget>> mSlotWidgetArray;
 	// 한 줄에 배치할 슬롯 개수
-	UPROPERTY(EditAnywhere, Category = "Inventory", meta = (ClampMin = 1)) int32 mColumnCount = 6;
+	UPROPERTY(EditAnywhere, Category = "Inventory", meta = (ClampMin = 1)) int32 mColumnCount = 5;
 
 	TWeakObjectPtr<class UInventoryComponent> mInventoryComponent;
 	bool mIsDragging = false;

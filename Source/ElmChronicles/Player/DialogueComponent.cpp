@@ -57,9 +57,10 @@ void UDialogueComponent::StartDialogue(ANPCCharacter* NPC, FName StartRow)
 		PlayerPawn->SetActorRotation(ToNPC.Rotation());
 	}
 
-	// 인벤토리와 퀘스트 창을 닫는다. RefreshInputMode가 커서도 함께 숨긴다.
+	// 인벤토리, 퀘스트, 캐릭터 창을 닫는다. RefreshInputMode가 커서도 함께 숨긴다.
 	PlayerController->SetInventoryOpen(false);
 	PlayerController->SetQuestOpen(false);
+	PlayerController->SetCharacterInfoOpen(false);
 
 	// 대화 중에는 다른 대상과 상호작용하지 않는다. 대상을 비우고 안내 문구를 숨기고 검색을 멈춘다.
 	PlayerController->GetInteraction()->SetBlocked(true);

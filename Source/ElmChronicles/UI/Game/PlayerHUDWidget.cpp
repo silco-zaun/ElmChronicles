@@ -3,6 +3,7 @@
 
 #include "PlayerHUDWidget.h"
 #include "CelebrationWidget.h"
+#include "CharacterInfoWidget.h"
 #include "ConfirmWidget.h"
 #include "DialogueWidget.h"
 #include "InventoryWidget.h"
@@ -27,6 +28,7 @@ void UPlayerHUDWidget::NativeOnInitialized()
 	SetDialogueVisible(false);
 	SetMenuVisible(false);
 	SetQuestVisible(false);
+	SetCharacterInfoVisible(false);
 }
 
 void UPlayerHUDWidget::SetPlayerName(const FString& Name)
@@ -39,12 +41,16 @@ void UPlayerHUDWidget::SetItemInfo(UItemObject* Item)
 	mItemInfoWidget->SetItemInfo(Item->GetItemInfo(), Item->GetItemUpgrade());
 }
 
-void UPlayerHUDWidget::ShowItemInfoWidget(bool IsShow)
+void UPlayerHUDWidget::ShowItemInfoWidget(bool IsShow, ESlotType From)
 {
 	if (IsShow)
 	{
-		// 인벤토리 창은 드래그로 옮길 수 있으므로 띄울 때마다 자리를 다시 잡는다.
-		PlaceItemInfoNextToInventory();
+		// 창은 드래그로 옮길 수 있으므로 띄울 때마다 자리를 다시 잡는다.
+		// 캐릭터 창(화면 왼쪽)은 창 오른쪽에, 인벤토리(화면 오른쪽)는 창 왼쪽에 붙여서 화면 밖으로 나가지 않게 한다.
+		if (From == ESlotType::Equipment)
+			PlaceItemInfoNextTo(mCharacterInfoWidget, false);
+		else
+			PlaceItemInfoNextTo(mInventoryWidget, true);
 
 		// 정보창은 보이기만 한다. SelfHitTestInvisible이면 자식(배경 등)이 마우스를 받아서,
 		// 정보창이 아이콘과 겹칠 때 아이콘의 Hover를 빼앗아 깜빡인다. 그래서 자식까지 통과시킨다.
@@ -54,7 +60,7 @@ void UPlayerHUDWidget::ShowItemInfoWidget(bool IsShow)
 		mItemInfoWidget->SetVisibility(ESlateVisibility::Collapsed);
 }
 
-void UPlayerHUDWidget::PlaceItemInfoNextToInventory()
+void UPlayerHUDWidget::PlaceItemInfoNextTo(const UWidget* Window, bool PlaceOnLeft)
 {
 	UCanvasPanelSlot* PanelSlot = Cast<UCanvasPanelSlot>(mItemInfoWidget->Slot);
 	UPanelWidget* ParentPanel = mItemInfoWidget->GetParent();
@@ -63,17 +69,20 @@ void UPlayerHUDWidget::PlaceItemInfoNextToInventory()
 		return;
 
 	// 아래 위치는 Canvas 왼쪽 위 기준으로 계산하므로 앵커를 왼쪽 위로 고정한다. (WBP 앵커가 바뀌어도 화면 밖으로 나가지 않는다)
-	// Alignment (1, 0)이면 Position이 정보창의 오른쪽 위 모서리가 되어, 정보창 크기를 몰라도 오른쪽 끝을 인벤토리 왼쪽에 맞출 수 있다.
+	// Alignment가 Position을 정보창의 어느 모서리로 볼지 정한다. 왼쪽에 붙일 때 (1, 0) = 오른쪽 위 모서리,
+	// 오른쪽에 붙일 때 (0, 0) = 왼쪽 위 모서리. 그래서 정보창 크기를 몰라도 창 가장자리에 맞출 수 있다.
 	PanelSlot->SetAnchors(FAnchors(0.f, 0.f));
-	PanelSlot->SetAlignment(FVector2D(1.0, 0.0));
+	PanelSlot->SetAlignment(FVector2D(PlaceOnLeft ? 1.0 : 0.0, 0.0));
 
-	// 인벤토리 창의 왼쪽 위 모서리를 화면 좌표로 구한다.
+	// 창의 왼쪽 위 / 오른쪽 위 모서리를 화면 좌표로 구한다.
 	// 타이틀바 드래그로 옮긴 양(RenderTranslation)도 Geometry에 들어 있으므로 옮긴 자리를 따라간다.
-	const FVector2D InventoryTopLeft = mInventoryWidget->GetCachedGeometry().LocalToAbsolute(FVector2D::ZeroVector);
+	const FGeometry& WindowGeometry = Window->GetCachedGeometry();
+	const FVector2D WindowCorner = WindowGeometry.LocalToAbsolute(
+		PlaceOnLeft ? FVector2D::ZeroVector : FVector2D(WindowGeometry.GetLocalSize().X, 0.0));
 
-	// Canvas 기준 좌표로 바꾸고, 인벤토리와 딱 붙지 않게 조금 왼쪽으로 띄운다.
-	FVector2D WidgetPos = ParentPanel->GetCachedGeometry().AbsoluteToLocal(InventoryTopLeft);
-	WidgetPos.X -= 8.0;
+	// Canvas 기준 좌표로 바꾸고, 창과 딱 붙지 않게 조금 띄운다.
+	FVector2D WidgetPos = ParentPanel->GetCachedGeometry().AbsoluteToLocal(WindowCorner);
+	WidgetPos.X += PlaceOnLeft ? -8.0 : 8.0;
 
 	PanelSlot->SetPosition(WidgetPos);
 }
@@ -127,11 +136,27 @@ bool UPlayerHUDWidget::IsQuestVisible() const
 	return mQuestWidget->GetVisibility() == ESlateVisibility::Visible;
 }
 
+void UPlayerHUDWidget::SetCharacterInfoVisible(bool Visible)
+{
+	// 인벤토리 창처럼 Visible로 둔다. 창 위를 클릭해도 뒤의 게임(공격)으로 새지 않는다.
+	mCharacterInfoWidget->SetVisibility(Visible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+
+	// SetInventoryVisible과 같은 이유로 정보창도 닫는다. (장비칸 아이콘 위에서 C를 누르면 MouseLeave가 오지 않는다)
+	if (!Visible)
+		ShowItemInfoWidget(false);
+}
+
+bool UPlayerHUDWidget::IsCharacterInfoVisible() const
+{
+	// IsInventoryVisible과 같은 이유로 직접 설정한 값과 비교한다.
+	return mCharacterInfoWidget->GetVisibility() == ESlateVisibility::Visible;
+}
+
 bool UPlayerHUDWidget::IsAnyWindowOpen() const
 {
 	// 나중에 스킬창이 생기면 여기에 || 로 추가한다.
 	// 확인 상자는 창이 없을 때(Alt+F4)도 뜨므로, 그때도 커서가 보이게 같이 본다.
-	return IsInventoryVisible() || IsMenuVisible() || IsQuestVisible() || IsConfirmVisible();
+	return IsInventoryVisible() || IsMenuVisible() || IsQuestVisible() || IsCharacterInfoVisible() || IsConfirmVisible();
 }
 
 void UPlayerHUDWidget::OpenConfirm(const FText& Message, FSimpleDelegate OnYes)

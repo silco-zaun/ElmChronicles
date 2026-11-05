@@ -14,5 +14,9 @@ namespace ElmTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Reward_Gold, "SetByCaller.Reward.Gold", "처치 보상 골드 SetByCaller");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Recovery_HP, "SetByCaller.Recovery.HP", "HP 회복량 SetByCaller");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Recovery_MP, "SetByCaller.Recovery.MP", "MP 회복량 SetByCaller");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Equip_PhysicalAttack, "SetByCaller.Equip.PhysicalAttack", "장비 공격력 증가량 SetByCaller");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Equip_MagicalAttack, "SetByCaller.Equip.MagicalAttack", "장비 마법 공격력 증가량 SetByCaller");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Equip_PhysicalDefense, "SetByCaller.Equip.PhysicalDefense", "장비 방어력 증가량 SetByCaller");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Equip_MagicalDefense, "SetByCaller.Equip.MagicalDefense", "장비 마법 방어력 증가량 SetByCaller");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Dead, "State.Dead", "사망 상태. 이 태그가 있으면 어빌리티가 발동하지 않는다");
 }

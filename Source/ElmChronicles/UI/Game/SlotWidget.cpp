@@ -33,6 +33,11 @@ void USlotWidget::NativeOnInitialized()
 bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry,
 	const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
+	// 끌어다 놓기는 가방 칸끼리만 한다. 장비칸 번호(EEquipSlot)는 가방 칸 번호와 다른 목록이라,
+	// 장비칸에 놓은 것을 SwapItem에 넘기면 엉뚱한 가방 칸끼리 바뀐다. (착용은 우클릭 / 더블클릭)
+	if (mType != ESlotType::Inventory)
+		return false;
+
 	UIconDragDropOperation* DragIcon = Cast<UIconDragDropOperation>(InOperation);
 
 	if (DragIcon && DragIcon->mDragStartSlot->mIndex != mIndex)

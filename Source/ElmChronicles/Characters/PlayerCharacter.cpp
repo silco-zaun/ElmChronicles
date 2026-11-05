@@ -408,10 +408,16 @@ bool APlayerCharacter::AddInventoryItem(FName ItemKey)
 	return mInventory->AddItem(ItemKey);
 }
 
+void APlayerCharacter::SetWeaponVisibility(bool NewVisibility)
+{
+	// 메시와 손 위치는 DT_Player가 정한다(InitAsset). 여기서는 보이기만 바꾸므로 InitAsset보다 먼저 불려도 된다.
+	mMainhand->SetVisibility(NewVisibility);
+}
+
 void APlayerCharacter::WriteToSave(UElmSaveGame& Save) const
 {
-	// 가방은 칸 번호까지 적는다.
-	mInventory->WriteToSave(Save.Inventory);
+	// 가방과 장비칸은 칸 번호까지 적는다.
+	mInventory->WriteToSave(Save.Inventory, Save.Equipment);
 
 	// 퀘스트는 컨트롤러의 퀘스트 컴포넌트가 들고 있다. 컨트롤러도 레벨을 옮기면 새로 만들어지므로 함께 적는다.
 	// (아래 ASC 확인에서 return할 수 있으므로 그 앞에 둔다)

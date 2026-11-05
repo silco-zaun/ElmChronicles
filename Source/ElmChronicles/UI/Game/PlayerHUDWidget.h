@@ -42,6 +42,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UQuestWidget> mQuestWidget;
 
+	// C 키 캐릭터 창. 정보창(mItemInfoWidget)이 그 위에 그려지도록 Canvas에서 정보창보다 앞에 둔다.
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UCharacterInfoWidget> mCharacterInfoWidget;
+
 	// 화면 가운데 축하 문구. 메뉴 / 확인 상자가 그 위에 그려지도록 Canvas에서 메뉴보다 앞에 둔다.
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UCelebrationWidget> mCelebrationWidget;
@@ -60,13 +64,16 @@ protected:
 public:
 	void SetPlayerName(const FString& Name);
 	void SetItemInfo(class UItemObject* Item);
-	void ShowItemInfoWidget(bool IsShow = true);
+	// From : 마우스를 올린 아이콘의 칸 종류. 그 칸이 있는 창 옆에 정보창을 띄운다.
+	void ShowItemInfoWidget(bool IsShow = true, ESlotType From = ESlotType::Inventory);
 	void SetInventoryVisible(bool Visible);
 	bool IsInventoryVisible() const;
 	void SetMenuVisible(bool Visible);
 	bool IsMenuVisible() const;
 	void SetQuestVisible(bool Visible);
 	bool IsQuestVisible() const;
+	void SetCharacterInfoVisible(bool Visible);
+	bool IsCharacterInfoVisible() const;
 	// 커서가 필요한 창(확인 상자 포함)이 하나라도 열려 있는지
 	bool IsAnyWindowOpen() const;
 	// 확인 상자를 연다.
@@ -82,6 +89,6 @@ public:
 	void ShowCelebration(const FText& Title, const FText& SubText);
 
 private:
-	// 정보창을 인벤토리 창 바로 왼쪽에 붙인다.
-	void PlaceItemInfoNextToInventory();
+	// 정보창을 Window 옆에 붙인다. PlaceOnLeft면 창 왼쪽, 아니면 창 오른쪽.
+	void PlaceItemInfoNextTo(const UWidget* Window, bool PlaceOnLeft);
 };

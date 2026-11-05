@@ -59,4 +59,10 @@ UDefaultInput::UDefaultInput()
 
 	if (QuestInputAction.Succeeded())
 		mInputActionMap.Add(TEXT("Quest"), QuestInputAction.Object);
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> CharacterInfoInputAction(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/Input/Default/IA_CharacterInfo.IA_CharacterInfo'"));
+
+	if (CharacterInfoInputAction.Succeeded())
+		mInputActionMap.Add(TEXT("CharacterInfo"), CharacterInfoInputAction.Object);
 }

@@ -57,5 +57,9 @@ public:
 	// 받은 퀘스트 (진행 중 + 완료)
 	UPROPERTY() TArray<FQuestProgress> Quests;
 
-	// 나중에 추가: 장착 장비, 위치 ...
+	// 장착 장비. SlotIndex = 장비칸 번호(EEquipSlot). 가방 칸과 같은 구조체를 쓴다.
+	UPROPERTY() TArray<FInventorySaveEntry> Equipment;
+
+	// Todo : 위치 ...
+
 };

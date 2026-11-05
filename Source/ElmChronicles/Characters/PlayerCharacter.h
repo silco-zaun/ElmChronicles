@@ -71,6 +71,8 @@ private:
 
 public:
 	bool AddInventoryItem(FName ItemKey);
+	// 무기칸이 바뀌면 인벤토리가 부른다. false면 맨손이 된다.
+	void SetWeaponVisibility(bool NewVisibility);
 	// 레벨 이동 / 저장 직전에 지금 상태를 메모에 적는다. (읽기는 각 부품이 자기 초기화 때 한다)
 	void WriteToSave(class UElmSaveGame& Save) const;
 };

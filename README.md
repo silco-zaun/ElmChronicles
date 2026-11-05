@@ -160,7 +160,7 @@ ElmChronicles/
 │  ├─ Subsystem/       AssetSubsystem(데이터 로딩), SaveSubsystem(레벨 이동·상태 유지)
 │  ├─ Player/          PlayerController / PlayerState / InventoryComponent
 │  ├─ Interaction/     IInteractable, LevelPortal
-│  ├─ Item/            ItemObject, ItemBox
+│  ├─ Item/            ItemObject (가방 / 장비칸의 아이템. 레벨 액터는 없다)
 │  ├─ UI/Game/         HUD, 인벤토리, 아이템 정보, 대화창 위젯
 │  ├─ Animations/      AnimInstance, 몽타주 → GameplayEvent 노티파이
 │  └─ Input/           Enhanced Input 설정

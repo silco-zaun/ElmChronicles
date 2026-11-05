@@ -17,5 +17,9 @@ namespace ElmTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Reward_Gold);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Recovery_HP);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Recovery_MP);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Equip_PhysicalAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Equip_MagicalAttack);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Equip_PhysicalDefense);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Equip_MagicalDefense);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Dead);
 }

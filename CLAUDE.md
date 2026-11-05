@@ -136,6 +136,15 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
   - 레벨 이동: 메모 규칙 그대로다. `APlayerCharacter::WriteToSave`가 `UElmSaveGame::Quests`에 적고, `UQuestComponent::InitQuests`(`CallOrRegisterDataLoaded`)가 읽는다.
   - UI: HUD 오른쪽 `WBP_QuestTracker`(`UQuestTrackerWidget`, 진행 중만)와 P 키 창 `WBP_Quest`(`UQuestWidget`, 진행 중 + 완료)가 `AddQuestChangeCallback`으로 컴포넌트를 구독해서 스스로 다시 그린다. 레벨 이동 직후에는 HUD가 생기기 전에 목록이 되살아나므로 위젯이 `NativeConstruct`에서 한 번 직접 읽는다. 목표 글자("해골전사 처치 0 / 1")는 `UQuestComponent::MakeObjectiveText`가 만든다.
 
+### 인벤토리 / 장비
+
+- 아이템은 가방 / 장비칸의 아이콘(`UItemObject` + `DT_Item` 행)으로만 있다. 레벨에 놓이는 아이템 액터와 줍기는 없고, `FItemTableRow`에 메시도 없다(2026-11-05 결정). 몬스터 드랍은 처치할 때 가방에 바로 넣는다.
+- `UInventoryComponent`(`Player/`, 플레이어 캐릭터의 `mInventory`)가 가방 `mItemList`(50칸)와 장비칸 `mEquipList`(칸 번호 = `EEquipSlot`: 무기 / 갑옷 / 목걸이)를 함께 든다. 장비한 아이템은 가방에서 빠진다. 가방 칸 우클릭 / 더블클릭(`UseItem`)이 착용이고 끼고 있던 장비와 맞바꾼다.
+  - 아이콘 클릭은 `UIconWidget::UseSlotItem`이 칸 종류(`ESlotType`)별로 나눈다. 더블클릭의 두 번째 누름은 `NativeOnMouseButtonDown`으로 오지 않고 `NativeOnMouseButtonDoubleClick`으로만 온다(엔진 `FSlateApplication::ProcessMouseButtonDoubleClickEvent`). 그래서 빠른 우클릭 두 번도 더블클릭 함수가 받아야 두 번째가 사라지지 않는다. `UnequipItem`은 가방이 가득 차 있으면 실패한다.
+- 장비 능력치는 칸마다 Infinite GE(`UGameplayEffect_Equipment`, SetByCaller 4개) 하나를 걸고 `mEquipEffectList`의 Handle로 지운다. Base 값을 고치지 않으므로 레벨업(`InitLevelStats`)과 메모(Base 값만 적는다)에 섞이지 않는다.
+- 장비는 겉모습을 바꾸지 않는다. 플레이어 무기 메시는 DT_Player `MainhandMesh` 하나이고, 무기칸은 그 메시를 보이거나 숨기기만 한다(`APlayerCharacter::SetWeaponVisibility`). 그래서 `InitAsset`과 `InitInventory` 중 어느 쪽이 먼저 불려도 결과가 같다.
+- 레벨 이동은 메모 규칙 그대로다(`UElmSaveGame::Inventory` / `Equipment`). GE는 이전 ASC와 함께 사라지므로 `InitInventory`가 장비칸마다 다시 건다.
+
 ## 코드 컨벤션
 
 - 멤버 변수는 `m` 접두사(`mASC`, `mTeam`)를 쓰고, bool은 `b` 대신 `Is`를 쓴다(`mIsEssential`, `IsMagical`).

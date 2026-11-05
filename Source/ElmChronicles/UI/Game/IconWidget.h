@@ -42,6 +42,7 @@ private:
 protected:
 	virtual void NativeOnInitialized();
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent);
+	virtual FReply NativeOnMouseButtonDoubleClick(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent);
 	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation);
 	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent);
 	virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent);
@@ -52,10 +53,15 @@ public:
 	void EnableCount(bool Enable);
 
 private:
+	// 이 아이콘이 속한 칸 종류에 맞게 "사용"한다. 우클릭과 더블클릭이 같이 부른다.
+	void UseSlotItem();
 	void UseInventoryItem();
+	// 장비칸의 "사용"은 벗기다. 가방이 가득 차 있으면 아무 일도 일어나지 않는다.
+	void UseEquipItem();
 	void UseSkill();
 	void UseQuickSlotItem();
 	void InventoryItemRender();
+	void EquipItemRender();
 	void QuickSlotItemRender();
 	void SkillInfoRender();
 };

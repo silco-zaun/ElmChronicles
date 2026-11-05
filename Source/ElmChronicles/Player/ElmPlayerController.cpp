@@ -136,6 +136,9 @@ void AElmPlayerController::SetupInputComponent()
 	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Quest")),
 		ETriggerEvent::Started, this, &AElmPlayerController::ToggleQuest);
 
+	EnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("CharacterInfo")),
+		ETriggerEvent::Started, this, &AElmPlayerController::ToggleCharacterInfo);
+
 	// IMC_Dialogue에만 매핑되어 있으므로 대화 중에만 들어온다. 대화용 액션은 UDialogueInput이 들고 있다.
 	EnhancedInputComponent->BindAction(DialogueInputCDO->FindInputAction(TEXT("DialogueNext")),
 		ETriggerEvent::Started, mDialogue.Get(), &UDialogueComponent::AdvanceDialogue);
@@ -168,6 +171,21 @@ void AElmPlayerController::SetQuestOpen(bool Open)
 		return;
 
 	mPlayerHUDWidget->SetQuestVisible(Open);
+	RefreshInputMode();
+}
+
+void AElmPlayerController::ToggleCharacterInfo()
+{
+	if (mPlayerHUDWidget)
+		SetCharacterInfoOpen(!mPlayerHUDWidget->IsCharacterInfoVisible());
+}
+
+void AElmPlayerController::SetCharacterInfoOpen(bool Open)
+{
+	if (!mPlayerHUDWidget)
+		return;
+
+	mPlayerHUDWidget->SetCharacterInfoVisible(Open);
 	RefreshInputMode();
 }
 
