@@ -56,6 +56,11 @@ bool AElmCharacterBase::IsDead() const
 	return ASC && ASC->HasMatchingGameplayTag(ElmTags::State_Dead);
 }
 
+TArray<UStaticMeshComponent*> AElmCharacterBase::GetGearComponents() const
+{
+	return { mMainhand, mOffhand, mHeadGear, mBackGear };
+}
+
 void AElmCharacterBase::AttachBindPoseGear(UStaticMeshComponent* Gear, FName BoneName)
 {
 	USkeletalMesh* Body = GetMesh()->GetSkeletalMeshAsset();

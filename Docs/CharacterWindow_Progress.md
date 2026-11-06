@@ -36,7 +36,19 @@ C 키로 여는 캐릭터 창을 만든다. 가운데에는 Idle 자세의 캐�
 7. **`GetOwningPlayerState()`를 `AActor*`로 넘기려면 `GameFramework/PlayerState.h`가 필요하다.** `CharacterInfoWidget.cpp`가 이 include를 갖고 있다(`StatusBarWidget.cpp`도 같다). 전방 선언만 있으면 `APlayerState*` → `const AActor*` 변환을 컴파일러가 모른다.
 8. **에디터가 꺼지는 중에 빌드하면 `UnrealEditor-ElmChronicles-0001.dll`이 생긴다.** 2026-11-05 17:07 빌드가 그랬다. Hot Reload는 없었고, 모듈 목록이 `-0001`을 가리켜서 해롭지는 않았다. 작업 관리자에서 `UnrealEditor`가 사라진 것을 보고 빌드한다.
 9. **WBP를 만드는 동안 나는 BindWidget 에러는 정상이다.** `A required widget binding "mXxx" ... was not found`는 그 이름의 위젯을 다 놓으면 사라진다. `WBP_PlayerHUD`도 `mCharacterInfoWidget`을 놓기 전까지 같은 에러가 난다.
-10. **`IA_CharacterInfo`는 빌드 전에 있어야 한다.** `UDefaultInput` CDO가 에디터를 시작할 때 경로로 찾는다.
+10. **`IA_CharacterInfo`는 빌드 전에 있어야 한다.** `UDefaultInput` CDO가 에디터를 시작할 때 경로로 찾는다. 3단계의 `RT_CharacterPreview`도 같다(미리보기 액터 생성자가 `ConstructorHelpers`로 찾는다).
+11. **SceneCapture의 `SCS_SceneColorHDR`에는 노출(Exposure)이 적용되지 않는다.**
+    - 원인: 캡처는 기본적으로 View State가 없어서 PreExposure가 1이다(엔진 `PostProcessEyeAdaptation.cpp`의 PreExposure 계산). 화면과 달리 자동 노출이 밝기를 맞춰 주지 않는다.
+    - 그래서 미리보기 밝기는 미리보기 조명의 세기로만 정해진다. 너무 어둡거나 하얗게 날아가면 조명 Intensity를 고친다.
+    - 같은 이유로 톤매핑과 안티에일리어싱도 없다. RT를 표시 크기(280)보다 크게(512) 잡아 가장자리 계단을 줄인다.
+12. **SceneColorHDR의 알파는 뒤집혀 있다.** 엔진 `SceneCapturePixelShader.usf` 주석에 따르면 A = 1 − 불투명도라, 배경이 1이고 캐릭터가 0이다. 머티리얼 Opacity에 `1 − A`를 넣어야 배경이 투명해진다.
+13. **맵의 태양을 캡처에서 빼려면 Show Flag가 아니라 조명 채널을 쓴다.** `ShowFlags.DirectionalLights`는 `SHOWFLAG_FIXED_IN_SHIPPING(1, ...)`라 Shipping 빌드에서 끌 수 없다(엔진 `ShowFlagsValues.inl`). 그래서 미리보기 메시와 미리보기 조명을 조명 채널 1만 쓰게 한다. 맵 조명(채널 0)은 미리보기를 비추지 않고, 미리보기 조명은 맵을 비추지 않는다. 다만 스카이라이트는 조명 채널을 따르지 않아서 `ShowFlags.SetSkyLighting(false)`로 끈다(Shipping에서도 끌 수 있는 플래그다).
+14. **`ShowOnlyActors.Add(this)`는 생성자가 아니라 `BeginPlay`에서 한다.** 생성자에서 넣으면 CDO 포인터가 기본값으로 들어가 인스턴스에 복사된다.
+15. **Lumen은 씬 캡처에서 기본으로 꺼져 있다**(엔진 `SceneCaptureRendering.cpp`). 미리보기에 GI가 없으므로 그림자 쪽은 보조광이 밝힌다.
+16. **복사해서 만든 소스 파일도 인코딩을 확인한다.**
+    - 2026-11-06 `CharacterPreviewActor.cpp`가 BOM 없는 CP949로 저장되어 있었다. 같은 날 만든 `.h`는 UTF-8(BOM)이었다.
+    - 한국어 Windows에서는 빌드되지만, Claude의 Read / Edit 도구와 git diff에서 한글 주석이 깨진다.
+    - 확인 방법: `head -c3 파일 | od -An -tx1`이 `ef bb bf`인지 본다.
 
 ## 목표 구조
 
@@ -77,15 +89,15 @@ void SetCharacterInfoOpen(bool Open);  // HUD + RefreshInputMode. 대화 시작(
 | 단계 | 내용 | 상태 |
 |---|---|---|
 | 1 | 장비 로직: 착용 / 해제 / 맞바꿈, 장비 GE, 무기 보이기, 메모, 아이템 줍기 제거, 더블클릭 착용 | ☑ (2026-11-05 PIE 확인. 더블클릭은 2단계 확인 표에서 함께 본다) |
-| 2 | 캐릭터 창: C 키, 탭, 장비칸 3개, 장비칸 해제, 능력치 표시, 정보창 위치 | ◐ 코드, 빌드(18:28), `WBP_CharacterInfo` / `WBP_PlayerHUD` 저장(18:44)까지 했다. PIE 확인이 남았다 |
-| 3 | 가운데 캐릭터 미리보기 | ☐ |
-| 4 | 마무리: CLAUDE.md 갱신, 커밋, 이 문서 정리 | ☐ |
+| 2 | 캐릭터 창: C 키, 탭, 장비칸 3개, 장비칸 해제, 능력치 표시, 정보창 위치 | ☑ (커밋 `0e7ef54`, 2026-11-06 사용자 PIE 확인) |
+| 3 | 가운데 캐릭터 미리보기 | ◐ 코드, 에셋, 미리보기 표시까지 반영됐다(2026-11-06 PIE 화면 확인, 아직 커밋 전). 조명을 레벨의 태양 / 스카이라이트로 바꾸는 중이다(아래 "조명 2차"). `CharacterPreviewActor.cpp`는 UTF-8(BOM)로 다시 저장됐다 |
+| 4 | 마무리: CLAUDE.md 갱신, 커밋, 이 문서 정리 | ◐ CLAUDE.md에 캐릭터 창(2단계)을 적었다. 미리보기(3단계)와 문서 정리가 남았다 |
 
 ### 1단계: 장비 로직 (완료)
 - 작업: `InventoryComponent`(`mEquipList`, `EquipItem`, `UnequipItem`, `RefreshEquipSlot`, `ReadEquipFromSave`, `InitInventory` 끝 반복문), `GameplayEffect_Equipment`, `ElmGameplayTags`(Equip 태그 4개), `ElmSaveGame::Equipment`, `PlayerCharacter`(`SetWeaponVisibility`, `WriteToSave`), `ItemTableRow`(Mesh 삭제), `Item/ItemBox.*` 삭제, `IconWidget`(`UseSlotItem`, `NativeOnMouseButtonDoubleClick`).
 - 데이터: `DataSource/DT_Item.csv`에서 `Mesh` 열을 지웠다. `DT_Player.csv` Kyle의 `MainhandMesh`는 `/Game/Assets/KayKit/Adventurers/Assets/sword_1handed.sword_1handed`다. 둘 다 사용자가 다시 임포트했다.
 
-### 2단계: 캐릭터 창 (PIE 확인 남음)
+### 2단계: 캐릭터 창 (완료)
 - 작업(반영됨): `UITypes.h`(`Equipment`), `DefaultInput.cpp`(`CharacterInfo`), `CharacterInfoWidget.h/.cpp`(새 파일), `PlayerHUDWidget`(`mCharacterInfoWidget`, `PlaceItemInfoNextTo`, `IsAnyWindowOpen`), `ElmPlayerController`(토글 / 바인딩), `DialogueComponent.cpp`(대화 시작 때 닫기), `IconWidget`(`UseEquipItem`, `EquipItemRender`, 장비칸 드래그 막기), `SlotWidget.cpp`(`NativeOnDrop` 가방 칸만).
 - 빌드: 에디터를 끈 뒤 CLAUDE.md의 `Build.bat` 명령.
 - 테스트(시작 맵 `/Game/Maps/Test`, 새 게임 = 가방에 목검 / 천갑옷 / 체력 포션 1개):
@@ -107,21 +119,71 @@ void SetCharacterInfoOpen(bool Open);  // HUD + RefreshInputMode. 대화 시작(
 
 - 보류: **포션 빠르게 우클릭 두 번 → 2개 소모** 확인. 새 게임 포션이 1개뿐이라(`GiveStartingItems`가 `AddItem(Key)`로 1개씩 준다) 지금은 할 수 없다. 포션이 2개 이상 생기면(상점이나 드랍) 확인한다.
 
-### 3단계: 캐릭터 미리보기 (계획, 아직 검증하지 않음)
-- 미리보기 액터(C++ 1개): SkeletalMesh(DT_Player 행의 메시 / ABP 또는 Idle 애니메이션) + 무기 메시 + 조명 + `USceneCaptureComponent2D`. 레벨에 보이지 않는 곳(맵 아래 등)에 스폰한다.
-- 캡처:
-  - `PrimitiveRenderMode = UseShowOnlyList`로 이 액터의 컴포넌트만 찍는다.
-  - 배경을 비우려면 `CaptureSource = SceneColorHDR`로 찍고, 머티리얼에서 알파를 뒤집는다(1 − A).
-  - 창이 닫혀 있으면 캡처를 끈다(`bCaptureEveryFrame` / `bCaptureOnMovement` 끄기).
-- 표시: RenderTarget → User Interface 도메인 머티리얼 → `WBP_CharacterInfo`의 Image. 이 프로젝트는 Substrate라서 Blend Mode 이름이 다르다(Translucent = `TranslucentGreyTransmittance`).
-- 정할 것:
-  - 미리보기의 무기가 무기칸을 따라 보이고 숨는지(`mOnEquipChanged` 구독).
-  - 마우스 드래그 회전을 넣을지.
-- **WBP 준비가 필요하다.** 2단계 가이드는 장비 탭 가운데에 `PreviewArea`라는 Border를 두라고 했지만, 지금 `WBP_CharacterInfo`에는 그 이름의 위젯이 없다(2026-11-05 에셋 문자열로 확인). 3단계를 시작할 때 미리보기 Image를 놓을 자리를 사용자와 먼저 확인한다.
+### 3단계: 캐릭터 미리보기 (반영됨, 조명 조정 중)
+- 새 클래스 `ACharacterPreviewActor`(`UI/Game/CharacterPreviewActor.h/.cpp`):
+  - 구성: 루트 + 몸(`USkeletalMeshComponent`) + 장비 메시 4개 + `USceneCaptureComponent2D` + 점광원 2개(주광 / 보조광).
+  - `CopyAppearance(const AElmCharacterBase*)`가 플레이어 컴포넌트에서 몸 메시, ABP 클래스, 장비 메시(소켓, 상대 위치, 보이기)를 복사한다. DT를 다시 읽지 않으므로 `AttachBindPoseGear` 계산과 무기칸 숨김이 그대로 따라온다.
+  - `SetCaptureActive(bool)`은 `bCaptureEveryFrame`만 켜고 끈다.
+- `AElmCharacterBase::GetGearComponents()`: 장비 메시 4개를 정해진 순서(오른손, 왼손, 머리, 등)로 돌려준다. 헤더에는 `UStaticMeshComponent`가 전방 선언뿐이라 정의는 .cpp에 둔다.
+- `UCharacterInfoWidget`:
+  - `NativeConstruct`가 미리보기 액터를 (0, 0, 100000)에 스폰하고, `NativeDestruct`가 지운다.
+  - `SetPreviewActive(bool)`는 열 때 겉모습을 복사하고 캡처를 켠다. HUD `SetCharacterInfoVisible`이 부른다.
+  - `EquipChange`도 겉모습을 다시 복사한다(무기 보이기).
+- 에셋:
+  - `RT_CharacterPreview`(512×512, RGBA16f)
+  - `M_CharacterPreview`: User Interface 도메인, Translucent. `Substrate UI` 노드에 Color = RGB, Opacity = 1 − A를 넣는다.
+  - `WBP_CharacterInfo` 장비 탭 가운데의 Image: 브러시 = `M_CharacterPreview`, 280×280. BindWidget은 필요 없다.
+- 시작 값(PIE에서 맞춘 뒤 코드에 옮긴다):
+  - 카메라: (560, 0, 120), Yaw 180, FOV 30
+  - 처음 조명: 주광 (250, 150, 260) 30 cd, 보조광 (250, −200, 100) 10 cd. 둘 다 흰색이고 그림자가 없다.
+- 조명 1차(2026-11-06 반영, 너무 어두워서 버림): 미리보기 전용 점광원 2개를 태양 / 하늘처럼 둔 안. 아래는 그때의 기록이다.
+  - 문제: 흰 빛이라 게임 화면의 햇빛보다 어색했다.
+  - 게임 쪽 기준(Field 맵, unreal-mcp로 확인):
+    - 태양: Directional Light 6 lux, 6500K, 높이 약 50°, `Atmosphere Sun Light` 켜짐, 그림자 있음
+    - 하늘빛: Sky Light 실시간 캡처
+    - 그 밖에 Lumen 반사광과 톤매핑이 있다. PostProcessVolume은 없다.
+  - 바꾸는 것:
+    - 주광 = "태양": 약 20 m 떨어진 높이 50° 자리, 따뜻한 색, 그림자 켬, Source Radius 15
+    - 보조광 = "하늘": 반대쪽 위, 하늘색, 그림자 없음
+    - 미리보기 메시: `CastShadow` 켬
+  - 멀리 두는 이유: 가까운 점광원은 거리 제곱으로 어두워져서, 3 m 거리에서는 발이 머리의 약 55% 밝기였다. 20 m에서는 약 85%라 햇빛처럼 고르다.
+  - 메인 화면에는 영향이 없다. 엔진 `FPrimitiveSceneProxy::IsShadowCast`가 캡처 전용(`bVisibleInSceneCaptureOnly`) 메시의 그림자를 씬 캡처가 아닌 뷰에서 뺀다.
+  - 남은 차이: 톤매핑. `SCS_SceneColorHDR`에는 필름 커브가 없다. `SCS_FinalColorLDR`로 바꾸면 톤매핑이 들어가지만 두 가지가 더 필요하다.
+    - 프로젝트 설정 "Alpha Output"(`r.PostProcessing.PropagateAlpha`). 게임 화면 전체의 후처리에 알파를 싣게 된다.
+    - 캡처 `PostProcessSettings`의 수동 노출
+    - 그래서 조명으로 부족할 때만 한다.
+  - 어두웠던 이유:
+    - 점광원의 반경 마스크(엔진 `DeferredLightingCommon.ush`의 `LightRadiusMask = Square(saturate(1 - Square(d² / R²)))`)가 Attenuation Radius 3000에서 주광을 65%, 보조광을 78%로 깎았다.
+    - 하늘색 보조광은 흰색보다 휘도가 약 절반이다.
+    - 그림자가 생기자 투구 아래 얼굴에는 약한 보조광만 닿았다.
+- 조명 2차(2026-11-06 사용자 요청 "레벨 라이트를 반영", 가이드 전달, 반영 전):
+  - 미리보기 전용 조명을 지우고, 레벨의 Directional Light(태양)와 Sky Light로 비춘다.
+    - 둘은 맵 어디에나 닿아서 Z 100000의 미리보기도 플레이어와 같은 빛을 받는다.
+    - 9개 맵 모두 둘 다 있다(`.umap` 문자열로 확인). 실내 맵의 점광원(등불)은 닿지 않는다.
+  - 바꾸는 것:
+    - 미리보기 액터: 메시를 조명 채널 0(기본값)으로 되돌리고, `ShowFlags.SetSkyLighting(false)`와 점광원 2개를 지운다.
+    - `BeginPlay`가 첫 `ADirectionalLight`의 방향을 읽어 액터 Yaw를 `해 쪽 − 35°`로 돌린다.
+    - `M_CharacterPreview`: RGB에 Scalar Parameter `Brightness`(시작 0.5)를 곱한다.
+  - 돌리는 이유: Field 해의 Rotation은 Pitch −49.5, Yaw −10.3이다. 빛이 +X 쪽으로 나아가므로 해는 −X 쪽에 있다. 미리보기는 +X를 보고 카메라도 +X에 서 있어서, 그대로 두면 해를 등지고 얼굴이 그림자에 묻힌다.
+  - `Brightness`가 필요한 이유: 캡처에는 자동 노출이 없다. Field의 태양(6 lux)과 하늘빛을 그대로 받으면 1차 조명보다 2~3배 밝을 것으로 보았다(추정, PIE에서 맞춘다).
+  - 남는 위험: 맵마다 태양 / 스카이라이트 세기가 다르면 미리보기 밝기도 맵마다 달라진다. 게임 화면은 자동 노출이 가려 주지만 미리보기는 그렇지 않다. 실내 맵의 값은 아직 보지 않았다.
+- 버린 안: 미리보기 전용 Idle 애니메이션을 생성자 경로로 지정하는 안. 플레이어 ABP를 복사하면 DT_Player 행(리그)을 따라가고 경로를 코드에 적지 않아도 된다.
+- 넣지 않은 것: 마우스 드래그로 회전시키기.
+- 테스트:
+
+| 확인 | 기대 결과 |
+|---|---|
+| C로 창 열기 | 가운데에 Knight가 Idle로 숨 쉬듯 움직이고, 뒤 배경은 창 배경색이 비친다. 검은 사각형이면 머티리얼 Opacity(1 − A)나 Blend Mode를 의심한다 |
+| 무기칸 우클릭(해제) / 목검 착용 | 미리보기 손의 칼이 바로 사라지고 다시 생긴다 |
+| 메인 화면 | 하늘(Z 100000)에 캐릭터가 보이지 않는다(`bVisibleInSceneCaptureOnly`) |
+| Test 맵과 실내 맵(KyleHouse 등)에서 열기 | 밝기가 같다(조명 채널 1). 너무 어둡거나 하얗게 날아가면 PIE 중 Outliner에서 `CharacterPreviewActor` → `KeyLight` / `FillLight` Intensity를 바꿔 보고 코드 값을 고친다 |
+| 포탈로 맵 이동 뒤 C | 새 맵에서도 미리보기가 나온다(위젯과 함께 새로 스폰) |
+| 창 닫기 | Outliner에서 `Capture`의 Capture Every Frame이 꺼진다 |
+| 로그 | `RT_CharacterPreview`를 찾지 못했다는 CDO 생성자 에러가 없다 |
 
 ### 4단계: 마무리
-- CLAUDE.md의 "입력 / 상호작용 / UI"에서 창 목록을 "창(인벤토리 I, 퀘스트 P, 캐릭터 C)"로 고친다. "인벤토리 / 장비" 섹션에 캐릭터 창 항목을 더한다(구독 방식, 장비칸 슬롯 번호 = `EEquipSlot`, 정보창 위치 규칙).
-- 커밋은 사용자가 요청할 때 한다. 지금 작업 트리에 1~2단계 변경이 모두 커밋되지 않은 채 있다(마지막 커밋 `5a3df08`).
+- CLAUDE.md에 캐릭터 창(2단계)은 2026-11-06에 적었다(창 목록 "인벤토리 I, 퀘스트 P, 캐릭터 C", "인벤토리 / 장비" 섹션의 캐릭터 창 항목, 대화 시작 때 닫는 창 목록). 3단계가 끝나면 미리보기 액터 항목을 더한다.
+- 커밋은 사용자가 한다. 1~2단계는 `0e7ef54`에 들어갔다.
 - 끝나면 이 문서를 지울지 사용자에게 묻는다.
 
 ## 에셋 작업
@@ -130,11 +192,13 @@ void SetCharacterInfoOpen(bool Open);  // HUD + RefreshInputMode. 대화 시작(
 |---|---|---|---|
 | `Content/Input/Default/IA_CharacterInfo` | `IA_Quest`를 복제해 만든다(Digital) | 사용자 | ☑ |
 | `Content/Input/Default/IMC_Default` | `IA_CharacterInfo` → C 매핑 | 사용자 | ☑ |
-| `Content/UI/Game/WBP_CharacterInfo` | 부모 `CharacterInfoWidget`. BindWidget 9개(이름 = C++ 변수, Is Variable). 버튼 3개는 Is Focusable 끔. Widget Switcher 자식 순서 0 = 장비, 1 = 능력치 | 사용자 | ☑ (PIE 확인 전) |
-| `Content/UI/Game/WBP_PlayerHUD` | `mCharacterInfoWidget` 배치: 왼쪽 가운데 앵커, Position (40, 0), Alignment (0, 0.5), Size To Content. Hierarchy에서 `mItemInfoWidget` / `mCelebrationWidget` / `mMenuWidget` / `mConfirmWidget`보다 앞 | 사용자 | ☑ (PIE 확인 전) |
+| `Content/UI/Game/WBP_CharacterInfo` | 부모 `CharacterInfoWidget`. BindWidget 9개(이름 = C++ 변수, Is Variable). 버튼 3개는 Is Focusable 끔. Widget Switcher 자식 순서 0 = 장비, 1 = 능력치 | 사용자 | ☑ |
+| `Content/UI/Game/WBP_PlayerHUD` | `mCharacterInfoWidget` 배치: 왼쪽 가운데 앵커, Position (40, 0), Alignment (0, 0.5), Size To Content. Hierarchy에서 `mItemInfoWidget` / `mCelebrationWidget` / `mMenuWidget` / `mConfirmWidget`보다 앞 | 사용자 | ☑ |
 | `Content/Data/DT_Item` | `DataSource/DT_Item.csv`(Mesh 열 삭제)로 다시 임포트 | 사용자 | ☑ |
 | `Content/Data/DT_Player` | `DataSource/DT_Player.csv`(Kyle 무기 메시)로 다시 임포트 | 사용자 | ☑ |
-| 3단계 RenderTarget / 머티리얼 / 미리보기 액터 BP | 3단계 가이드에서 정한다 | 사용자 | ☐ |
+| `Content/UI/Game/RT_CharacterPreview` | Render Target 512×512, RTF RGBA16f. **빌드 전에** 만든다 | 사용자 | ☐ |
+| `Content/UI/Game/M_CharacterPreview` | Domain User Interface, Blend Mode Translucent(Substrate 표기 `TranslucentGreyTransmittance`). Texture Sample(RT) → `Substrate UI`(Color = RGB, Opacity = 1 − A) → Front Material | 사용자 | ☐ |
+| `Content/UI/Game/WBP_CharacterInfo` (3단계) | 장비 탭 가운데(무기 열과 갑옷 열 사이)에 Image: 브러시 `M_CharacterPreview`, Image Size 280×280, 슬롯 Fill + 가운데 정렬 | 사용자 | ☐ |
 
 ## 진행 방식
 - **Claude는 C++ 소스와 에셋을 직접 고치지 않는다.** 단계마다 따라 하는 가이드를 준다(준비 → 파일:위치 → 바꾸기 전 / 후 코드 → 빌드 → PIE 확인, 단계마다 짧은 "왜"). 사용자가 붙여 넣고 빌드하고 에디터 작업을 한다.

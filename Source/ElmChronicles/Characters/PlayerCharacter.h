@@ -8,6 +8,7 @@
 #include "PlayerCharacter.generated.h"
 
 struct FItemTableRow;
+struct FMovementTableRow;
 class USpringArmComponent;
 class UCameraComponent;
 
@@ -27,6 +28,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")	float mMouseSensitivity = 0.5f;
 	// DT_Player 행 이름. 생성자에서 정하고, 외형과 능력치를 이 행에서 읽는다.
 	UPROPERTY(EditAnywhere, Category = "Player") FName mRowName;
+	// DT_Movement 행 이름. 고른 캐릭터(mRowName)와 상관없이 플레이어 조작감은 이 행에서 읽는다.
+	UPROPERTY(EditAnywhere, Category = "Player") FName mMovementRowName;
 
 	// 소유는 PlayerState가 한다. 캐릭터는 참조만 한다.
 	TWeakObjectPtr<class UPlayerAbilitySystemComponent> mASC;
@@ -66,6 +69,8 @@ private:
 	// DT_Player 행으로 외형과 기본 공격(서버 / 클라 모두),
 	// 능력치(서버만)를 적용한다. 테이블이 로드된 뒤에 불린다.
 	void InitAttributes();
+	// DT_Movement 행을 이동 컴포넌트에 넣는다. (InitAttributes가 부른다)
+	void InitMovement(const FMovementTableRow& Info);
 	// 경험치를 받으면 PlayerAttributeSet이 부른다. 필요 경험치를 채웠으면 레벨을 올린다.
 	void OnExpGained();
 

@@ -50,6 +50,8 @@ public:
 	// State.Dead 태그가 있으면 죽은 것으로 본다.
 	bool IsDead() const;
 	UAnimMontage* GetAttackMontage() const { return mAttackMontage; }
+	// 장비 메시 컴포넌트(오른손, 왼손, 머리, 등 순서). 캐릭터 창 미리보기가 같은 겉모습을 복사할 때 읽는다.
+	TArray<UStaticMeshComponent*> GetGearComponents() const;
 
 protected:
 	// 테이블 행의 외형(캡슐, 메시, ABP, 장비)과 기본 공격 몽타주를 적용한다.

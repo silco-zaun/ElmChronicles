@@ -22,8 +22,11 @@ Unreal Engine 5.8 C++ 싱글플레이 액션 RPG. 런타임 모듈은 `ElmChroni
 - Live Coding이 시작되지 않았거나 에디터에서 Live Coding을 끈 채(2026-10-30) 에디터가 열려 있으면 UBT가 빌드를 막지 않고 `UnrealEditor-ElmChronicles-0001.dll`을 만들며, 에디터가 Hot Reload를 시도한다. 클래스를 지운 변경에서는 이 Hot Reload 중에 에디터가 크래시했다(2026-10-27). IDE 빌드는 항상 에디터를 끄고 한다.
   - 새 행 구조체를 Hot Reload로 받은 세션에서 임포트한 DT는, 에디터를 다시 열면 `Missing RowStruct while loading DataTable`이 나며 행을 잃는다(2026-11-02 `DT_Quest`. DT를 지우고 다시 임포트해서 고쳤다). 새 `USTRUCT`가 들어간 빌드 뒤에는 에디터를 다시 연 다음에 임포트한다.
 - `.sln`/`.slnx`는 gitignore 대상(엔진이 생성)이다.
-- 자동화 테스트나 린트 설정은 없다. 검증은 PIE로 한다. 시작 맵은 `/Game/Maps/Test`다(`DefaultEngine.ini`).
+- 자동화 테스트나 린트 설정은 없다. 검증은 PIE로 한다. 시작 맵은 `/Game/Maps/ElmKingdom/Field`다(`DefaultEngine.ini` `GameDefaultMap` / `EditorStartupMap`).
+- 패키지(Platforms → Package Project): Shipping은 로그 파일을 남기지 않는다. 패키지에서만 생기는 문제는 Development로 패키지해서 `<패키지 폴더>/ElmChronicles/Saved/Logs/ElmChronicles.log`를 본다. 쿠킹은 Zen 저장소에 들어가서 `Saved/Cooked`에 에셋 파일이 없으므로, 무엇이 들어갔는지는 `%APPDATA%\Unreal Engine\AutomationTool\Logs\C+UE_5.8\PrePak_Windows_UFSFiles.txt`로 확인한다.
+  - 맵은 `MapsToCook`이 비어 있어서 `/Game/Maps` 아래가 모두 쿠킹된다. 그 밖의 에셋은 맵이나 C++(`ConstructorHelpers`)이 참조해야 들어간다. 경로나 PrimaryAssetId로만 찾는 에셋은 따로 쿠킹 규칙이 있어야 한다(아래 `DA_GameData`).
 - `.mcp.json`의 `unreal-mcp`(`http://127.0.0.1:8000/mcp`)는 `ModelContextProtocol` 플러그인이 띄우는 서버라서 에디터가 실행 중일 때만 연결된다.
+  - 함정(2026-11-06): `set_actor_transform`에 scale만 주면 location / rotation이 0으로 초기화된다(설명과 다르다). 항상 세 값을 모두 준다. 컴포넌트의 Parent Socket(`AttachSocketName`)은 `set_properties`로 읽지도 쓰지도 못하므로 사용자가 Details에서 고른다. 새 맵은 `AssetTools.duplicate`로 템플릿을 복제한 뒤 `save_assets`를 먼저 해야 `load_level`이 열린다.
 - 렌더링은 Substrate(`DefaultEngine.ini` `r.Substrate=True`)라서 머티리얼 Blend Mode 이름이 예전과 다르다. Translucent는 `TranslucentGreyTransmittance`, Modulate는 `ColoredTransmittanceOnly`다(엔진 `EngineTypes.h`에서 같은 값). 가이드에 예전 이름을 적지 않는다(2026-11-04).
 
 ## 아키텍처
@@ -31,8 +34,10 @@ Unreal Engine 5.8 C++ 싱글플레이 액션 RPG. 런타임 모듈은 `ElmChroni
 ### 데이터 로딩 (AssetManager → AssetSubsystem)
 
 - `DA_GameData`(`UGameDataAsset`, PrimaryAssetType `GameDataAsset`, `DefaultGame.ini`에 등록)가 모든 DataTable을 `mTables`로 들고 있다.
+  - 아무 에셋도 `DA_GameData`를 하드 참조하지 않으므로(런타임에 PrimaryAssetId로 찾는다) Project Settings → Asset Manager의 `GameDataAsset` 타입 **Cook Rule이 `Always Cook`이어야** 패키지에 들어간다. 엔진 `UAssetManager::ModifyCook`은 Always Cook(과 Development 변형)만 쿠킹 목록에 넣고, `Unknown`은 누가 참조할 때만 쿠킹한다. 2026-11-06 패키지에서 `Unknown`이라 DA, DT, DT가 Soft 참조하는 메시 / ABP / 몽타주 / `GA_*` BP가 모두 빠졌고, 데이터 로드 콜백이 오지 않아 캐릭터가 보이지 않고 HP / MP 바가 비었다. DA가 쿠킹되면 나머지는 참조를 따라 함께 들어간다.
 - `UAssetSubsystem`(GameInstanceSubsystem)이 시작할 때 비동기 로드하고, 테이블을 **행 구조체 이름**으로 등록한다. 조회는 `FindRow<FXxxTableRow>(RowName)`. 테이블을 추가할 때는 행 구조체를 만들고 `DA_GameData.mTables`에 넣기만 하면 된다(코드 수정 불필요).
 - 로드는 비동기라서 BeginPlay 시점에 테이블이 없을 수 있다. 테이블을 읽는 초기화는 반드시 `CallOrRegisterDataLoaded(this, &T::Func)`를 거친다(캐릭터 `InitAttributes`, 스포너 `SpawnCharacter`).
+  - 콜백끼리의 순서에 기대지 않는다. 기다리던 콜백은 엔진 멀티캐스트 델리게이트라 **등록 역순**으로 불리고(`MulticastDelegateBase.h` `Broadcast`), 이미 로드된 뒤(레벨 이동 후)에는 등록하는 즉시 불려서 순서가 또 달라진다. 첫 맵에서는 빙의 때 등록한 플레이어 `InitAttributes`(→ `InitAsset`)가 BeginPlay 때 등록한 `UInventoryComponent::InitInventory`보다 늦게 불린다(2026-11-06 로그로 확인).
 - 에디터 시점(Details 콤보박스 `GetOptions`)에는 서브시스템이 없으므로 static `UAssetSubsystem::GetRowNamesInEditor(RowStruct)`를 쓴다. AssetManager에 `DA_GameData` 위치를 물어 동기 로드하고, 게임과 같은 규칙(행 구조체)으로 테이블을 고른다. DT 경로를 코드에 적지 않는다.
 - 행 구조체 계층: `FCharacterTableRow` → `FPlayerCharacterTableRow`(DT_Player) / `FAICharacterTableRow` → `FMonsterCharacterTableRow`(DT_Monster), `FNPCCharacterTableRow`(DT_NPC). 레벨 스탯은 `FLevelStatTableRow`(DT_LevelStat, 행 이름 `"1"`~`"10"`).
 - `DataSource/*.csv`는 각 DT와 같은 내용의 CSV다(첫 열 `---` = 행 이름). 행 구조체 필드를 바꾸면 Claude가 요청이 없어도 CSV를 함께 고친다. DT 에셋은 사용자가 이 CSV로 다시 임포트한다.
@@ -111,6 +116,15 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 디스크 저장: `USaveSubsystem::SaveToDisk` = `WritePlayer` + `SaveGameToSlot(mSaveGame, "ElmSave", 0)`(`Saved/SaveGames/ElmSave.sav`). 메뉴 "저장하기"만 부른다. 이동 중이거나 죽었으면 쓰지 않는다. 불러오기는 아직 없다(메모에 맵 / 위치가 없다).
 - 결정 이유와 함정 기록은 끝나서 지운 진행 문서에 있다: `git show d3b7deb:Docs/LevelTravel_Progress.md`.
 
+### 메인 메뉴 레벨
+
+- `/Game/Maps/MainMenu`(2026-11-06): 엔진 Basic 템플릿(`/Engine/Maps/Templates/Template_Default`)을 복제한 배경 전용 맵이다. 조명은 Field와 같은 템플릿 값이고 태양(`DirectionalLight`) 방향만 캐릭터 얼굴이 화면 왼쪽 위에서 비치게 돌렸다. 배경은 Field의 성 안쪽(성벽 포함) 복사본이다. Field 원점 중심 반지름 6칸(성벽이 놓인 줄)까지의 StaticMeshActor 287개를 같은 메시 / 트랜스폼 / 라벨 / 아웃라이너 폴더(`ElmField/*`, `ElmKingdom/*`)로 다시 놓았다(전부 머티리얼 덮어쓰기 없는 Static 단일 컴포넌트라 메시와 트랜스폼만 옮기면 같다). 문 표식 / 포탈 / PlayerStart / 스포너 / NavMesh 같은 게임용 액터는 뺐다. 그래서 Field의 성 안쪽을 고치면 MainMenu는 따로 고쳐야 한다. 성벽 바깥은 비어 있어서 높은 곳에서 보면 섬처럼 끝난다.
+- 구도: `Kyle`은 남문 큰길 (-9100, -300), 카메라는 (-10000, -175, 210)에서 +X(성 쪽)를 본다. 카메라를 이보다 남문 쪽으로 물리면 카메라 뒤 남문 탑 그림자가 화면 아래에 걸린다.
+- 액터를 수백 개 한꺼번에 만든 직후의 뷰포트 캡처는 하얗게 과노출되어 보였고, 맵을 다시 열자 Field와 같은 노출로 돌아왔다(2026-11-06). 조명 값이 아니라 갱신 지연이었다.
+- 표시용 주인공은 게임 캐릭터가 아니라 `Kyle`(SkeletalMeshActor: Knight 메시 + `Rig_Medium_GeneralIdle_A` 단일 노드 재생)이다. 칼은 그 안의 `Sword` 컴포넌트를 Parent Socket `handslot_r`에 붙인다(게임과 같은 소켓).
+- 카메라는 `MenuCamera`(CameraActor, FOV 60, Constrain Aspect Ratio 끔)다. **Auto Activate for Player = Player 0**이라 코드 없이 뷰 타깃이 된다(엔진 `APlayerController::AutoManageActiveCameraTarget`이 Pawn보다 먼저 이 카메라를 고른다).
+- 아직 GameMode Override가 없어서 PIE에서는 게임용 `AElmGameModeBase`가 돌아 HP / MP HUD가 뜨고, 게임 캐릭터는 카메라 뒤 `PlayerStart`(-11200, 0)에 생긴다.
+
 ### 입력 / 상호작용 / UI
 
 - 입력 설정은 `UElmInputConfig` 자식 하나가 IMC 하나와 그 IA들을 생성자에서 경로로 찾아 `FindInputAction("Name")`으로 제공한다: `UDefaultInput`(`Content/Input/Default/`, `IMC_Default`), `UDialogueInput`(`Content/Input/Dialogue/`, `IMC_Dialogue`, 대화 중에만 `IMC_Default` 대신 켠다). 입력을 추가하려면 해당 폴더에 IA를 만들고 → 그 입력 설정 생성자에 등록하고 → 캐릭터 동작은 `APlayerCharacter::SetupPlayerInputComponent`, UI/상호작용은 `AElmPlayerController::SetupInputComponent`에서 바인딩한다. 핸들러가 컨트롤러 컴포넌트의 함수여도 바인딩은 컨트롤러에서 한다(`mInteraction.Get()`처럼 원시 포인터로 넘긴다).
@@ -121,13 +135,13 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
   - 일시정지 중에는 **Trigger when Paused**를 켠 IA만 발동한다. `IA_Menu`만 켜 두어서 메뉴가 열린 동안 이동 / 공격 / I / F가 막힌다. 입력 모드는 `FInputModeGameAndUI`다(UIOnly면 B가 컨트롤러에 오지 않아 메뉴를 닫을 수 없다).
   - 일시정지 중에는 월드 타이머가 돌지 않는다. 타이머를 쓰는 일(`TravelToLevel`의 페이드)은 메뉴를 닫은 뒤에 부른다(`UMenuWidget::OnRecallClicked`).
   - 메뉴 버튼은 WBP에서 **Is Focusable**을 끈다. 켜 두면 클릭한 버튼이 포커스를 가져가 Space / Enter가 그 버튼을 다시 누른다.
-- 창(인벤토리 I, 퀘스트 P)을 더하는 길: IA + `IMC_Default` 매핑 → `UDefaultInput` 등록 → 컨트롤러 바인딩 → `SetXxxOpen` → HUD `SetXxxVisible` / `IsXxxVisible` → `IsAnyWindowOpen`에 추가(→ `RefreshInputMode`가 커서와 GameAndUI를 맞춘다). IA는 빌드 전에 만들어 저장한다(입력 설정 CDO가 에디터 시작 때 경로로 찾는다).
+- 창(인벤토리 I, 퀘스트 P, 캐릭터 C)을 더하는 길: IA + `IMC_Default` 매핑 → `UDefaultInput` 등록 → 컨트롤러 바인딩 → `SetXxxOpen` → HUD `SetXxxVisible` / `IsXxxVisible` → `IsAnyWindowOpen`에 추가(→ `RefreshInputMode`가 커서와 GameAndUI를 맞춘다). IA는 빌드 전에 만들어 저장한다(입력 설정 CDO가 에디터 시작 때 경로로 찾는다).
 
 ### 대화 / 퀘스트
 
 - 대화: `UDialogueComponent`(`Player/`, 컨트롤러에 붙음, `GetDialogue()`). NPC의 `Interact`가 시작 행을 골라 `StartDialogue(NPC, Row)`를 부른다. 대사는 `DT_Dialogue`(`FDialogueTableRow`: `Speaker` / `Text` / `NextRow`) 한 줄이 한 행이고 `NextRow`가 None이면 끝이다. 선택지는 없다.
   - 대화 중에는 `IMC_Default`를 빼고 `IMC_Dialogue`(F / Space / 마우스 왼쪽 → `IA_DialogueNext`)를 넣어 다른 입력을 한 번에 막는다. IMC를 바꾸는 순간 눌려 있던 키를 무시하는 기본 옵션은 Value Type이 Boolean인 IA에만 걸리므로 `IA_DialogueNext`는 Digital(bool)로 둔다. 커서는 띄우지 않는다.
-  - 시작할 때 인벤토리 / 퀘스트 창을 닫고 `UInteractionComponent::SetBlocked(true)`를 부른다. NPC는 `BeginTalk`(BT `PauseLogic`, 플레이어 바라보기) / `EndTalk`(`ClearFocus` → `ResumeLogic`)로 멈췄다가 돌아간다. `EndTalk`는 NPC가 쓰러져 있어도 반드시 `ResumeLogic`을 부른다(사망 때의 `StopLogic`은 일시정지를 풀지 않아서, 안 풀면 부활 뒤에도 BT가 멈춰 있다).
+  - 시작할 때 인벤토리 / 퀘스트 / 캐릭터 창을 닫고 `UInteractionComponent::SetBlocked(true)`를 부른다. NPC는 `BeginTalk`(BT `PauseLogic`, 플레이어 바라보기) / `EndTalk`(`ClearFocus` → `ResumeLogic`)로 멈췄다가 돌아간다. `EndTalk`는 NPC가 쓰러져 있어도 반드시 `ResumeLogic`을 부른다(사망 때의 `StopLogic`은 일시정지를 풀지 않아서, 안 풀면 부활 뒤에도 BT가 멈춰 있다).
   - 끊김: 대화 중에만 도는 0.1초 타이머(`CheckInterrupt`: 플레이어 사망, NPC `CanInteract` false = 쓰러짐 / 전투)와 `APlayerCharacter::OnDamagedBy`가 `EndDialogue`를 부른다.
 - 퀘스트: `UQuestComponent`(`Player/`, 컨트롤러에 붙음, `GetQuest()`)가 받은 퀘스트 목록(`TArray<FQuestProgress>`: `QuestRow` / `State` / `KillCount`)을 들고, 받기 / 처치 세기 / 완료와 보상을 맡는다. 데이터는 `DT_Quest`(`FQuestTableRow`: 제목, 설명, `TargetMonster`(DT_Monster 행) × `TargetCount`, `RewardExp` / `RewardGold`, `ProgressDialogue` / `CompleteDialogue`). 목표는 처치형 하나뿐이다.
   - 받기: DT_NPC `QuestRow`가 있는 NPC와의 대화를 마지막 줄까지 넘기면 `UDialogueComponent::AdvanceDialogue`가 `AcceptQuest(NPC의 QuestRow)`를 부른다. 전투·피격으로 끊기면 받지 않는다. 수락 / 거절 UI는 없다(2026-11-02 대화창 버튼으로 만들다가 입력 모드·커서 처리까지 늘어나 사용자가 뺐다).
@@ -144,6 +158,11 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 장비 능력치는 칸마다 Infinite GE(`UGameplayEffect_Equipment`, SetByCaller 4개) 하나를 걸고 `mEquipEffectList`의 Handle로 지운다. Base 값을 고치지 않으므로 레벨업(`InitLevelStats`)과 메모(Base 값만 적는다)에 섞이지 않는다.
 - 장비는 겉모습을 바꾸지 않는다. 플레이어 무기 메시는 DT_Player `MainhandMesh` 하나이고, 무기칸은 그 메시를 보이거나 숨기기만 한다(`APlayerCharacter::SetWeaponVisibility`). 그래서 `InitAsset`과 `InitInventory` 중 어느 쪽이 먼저 불려도 결과가 같다.
 - 레벨 이동은 메모 규칙 그대로다(`UElmSaveGame::Inventory` / `Equipment`). GE는 이전 ASC와 함께 사라지므로 `InitInventory`가 장비칸마다 다시 건다.
+- 캐릭터 창(C, `UCharacterInfoWidget` / `WBP_CharacterInfo`)은 장비 / 능력치 두 탭이다(`mTabSwitcher` 0 / 1, 지금 탭의 버튼을 꺼서 표시한다).
+  - 장비칸 3개는 `ESlotType::Equipment` 슬롯이고, 슬롯 번호 = `EEquipSlot`이다. 그래서 아이콘이 번호를 `GetEquipItem` / `UnequipItem`에 그대로 넘긴다(우클릭 / 더블클릭 = 해제).
+  - 끌어다 놓기는 가방 칸끼리만 된다(`USlotWidget::NativeOnDrop`). 장비칸 번호를 `SwapItem`에 넘기면 엉뚱한 가방 칸끼리 바뀌기 때문이다.
+  - 장비 몫은 `현재 값 − Base 값`으로 계산해 `30 (+10)`처럼 보여 준다. 위젯이 인벤토리의 장비 변경과 PlayerState ASC의 Attribute 변경을 구독해서 스스로 다시 그린다.
+  - 아이템 정보창은 칸 종류로 자리를 정한다(`UPlayerHUDWidget::ShowItemInfoWidget(IsShow, From)`). 장비칸이면 캐릭터 창 오른쪽, 가방이면 인벤토리 왼쪽에 붙는다.
 
 ## 코드 컨벤션
 
@@ -151,5 +170,5 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 프로젝트 헤더는 상대 경로로 include하고(`"../GameInfo.h"`), 대부분의 헤더가 `GameInfo.h`를 먼저 include한다.
 - 로그 카테고리: `LogTestDebug`(경고/에러/디버그), `LogTestOrder`(초기화 호출 순서 추적).
 - 주석은 한글로, "왜 이렇게 하는지"를 적는다. 한 줄짜리 `if` 본문은 중괄호를 생략하는 스타일이다.
-- 소스 파일은 UTF-8(BOM)로 저장한다. 2026-11-02 새로 만든 `QuestTrackerWidget.cpp`가 CP949(ANSI)로 저장되어, 한국어 Windows에서는 빌드되지만 git diff와 다른 도구에서는 한글이 깨졌다. VS에서는 파일 → 다른 이름으로 저장 → 저장 버튼 옆 ▼ → 인코딩하여 저장 → "유니코드(서명 있는 UTF-8) - 코드 페이지 65001"로 바꾼다. 한글이 든 `NSLOCTEXT` / `TEXT` 문자열이 있는 파일은 특히 지킨다.
+- 소스 파일은 UTF-8(BOM)로 저장한다. 2026-11-02 새로 만든 `QuestTrackerWidget.cpp`가 CP949(ANSI)로 저장되어 git diff와 다른 도구에서 한글이 깨졌다. UBT는 `/utf-8`로 컴파일하므로(엔진 `VCToolChain.cs`) CP949 파일의 한글은 컴파일러에게도 깨진 글자다. 주석뿐이면 빌드는 되지만 `NSLOCTEXT` / `TEXT` 문자열이면 게임 화면 글자가 깨진다. 2026-11-06에 `CelebrationWidget.cpp`(CP949), `MenuWidget.cpp`(BOM 없는 UTF-8)와 ASCII 파일 7개를 UTF-8(BOM)으로 바꿨다. VS에서는 파일 → 다른 이름으로 저장 → 저장 버튼 옆 ▼ → 인코딩하여 저장 → "유니코드(서명 있는 UTF-8) - 코드 페이지 65001"로 바꾼다. 한글이 든 `NSLOCTEXT` / `TEXT` 문자열이 있는 파일은 특히 지킨다.
 - 생성자에서 에셋은 `ConstructorHelpers`로 전체 경로(`/Script/...'...'`)를 써서 찾는다. 클래스(ABP/WBP)는 경로 끝에 `_C`를 붙인다. 테이블로 정할 수 있는 외형/몽타주/어빌리티는 생성자 대신 DT의 Soft 참조를 쓴다.

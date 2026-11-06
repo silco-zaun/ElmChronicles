@@ -140,6 +140,8 @@ void UPlayerHUDWidget::SetCharacterInfoVisible(bool Visible)
 {
 	// 인벤토리 창처럼 Visible로 둔다. 창 위를 클릭해도 뒤의 게임(공격)으로 새지 않는다.
 	mCharacterInfoWidget->SetVisibility(Visible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	// 미리보기는 창이 보일 때만 찍는다.
+	mCharacterInfoWidget->SetPreviewActive(Visible);
 
 	// SetInventoryVisible과 같은 이유로 정보창도 닫는다. (장비칸 아이콘 위에서 C를 누르면 MouseLeave가 오지 않는다)
 	if (!Visible)

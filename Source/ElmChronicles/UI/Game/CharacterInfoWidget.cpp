@@ -2,8 +2,10 @@
 
 
 #include "CharacterInfoWidget.h"
+#include "CharacterPreviewActor.h"
 #include "SlotWidget.h"
 #include "../../AbilitySystem/Attributes/PlayerAttributeSet.h"
+#include "../../Characters/ElmCharacterBase.h"
 #include "../../Data/Tables/LevelStatTableRow.h"
 #include "../../Player/ElmPlayerController.h"
 #include "../../Player/InventoryComponent.h"
@@ -12,6 +14,7 @@
 #include "AbilitySystemGlobals.h"
 #include "Components/WidgetSwitcher.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 
@@ -48,11 +51,27 @@ namespace
 
 		return FText::Format(NSLOCTEXT("ElmCharacterInfo", "StatWithBonus", "{0} (+{1})"), Current, Bonus);
 	}
+
+	// 미리보기 캐릭터를 세울 곳. 메인 카메라에는 그려지지 않지만, 맵의 물체나 빛과 섞이지 않게 맵 위 높은 곳에 둔다.
+	const FVector PreviewLocation(0.0, 0.0, 100000.0);
 }
 
 UCharacterInfoWidget::UCharacterInfoWidget(const FObjectInitializer& ObjectInitializer) :
 	Super(ObjectInitializer)
 {
+}
+
+void UCharacterInfoWidget::SetPreviewActive(bool Active)
+{
+	if (ACharacterPreviewActor* Preview = mPreviewActor.Get())
+	{
+		// 열 때마다 지금 플레이어의 겉모습을 다시 복사한다.
+		// (위젯이 생기는 시점에는 데이터 로드 전이라 DT 외형이 아직 적용되지 않았을 수 있다)
+		if (Active)
+			Preview->CopyAppearance(Cast<AElmCharacterBase>(GetOwningPlayerPawn()));
+
+		Preview->SetCaptureActive(Active);
+	}
 }
 
 void UCharacterInfoWidget::NativeOnInitialized()
@@ -113,6 +132,14 @@ void UCharacterInfoWidget::NativeConstruct()
 
 		// 구독 이전의 현재 값으로 한 번 그린다.
 		RefreshStats();
+
+		// 가운데 캐릭터 미리보기. 하나만 세워 두고, 창이 열려 있을 때만 찍는다(SetPreviewActive).
+		// 레벨을 이동하면 월드와 함께 사라지고, 새 맵의 HUD가 만들어질 때 다시 생긴다.
+		if (!mPreviewActor.IsValid())
+		{
+			if (UWorld* World = GetWorld())
+				mPreviewActor = World->SpawnActor<ACharacterPreviewActor>(PreviewLocation, FRotator::ZeroRotator);
+		}
 	}
 }
 
@@ -127,8 +154,13 @@ void UCharacterInfoWidget::NativeDestruct()
 			ASC->GetGameplayAttributeValueChangeDelegate(Attribute).RemoveAll(this);
 	}
 
+	// 레벨 이동이면 월드와 함께 이미 사라졌을 수 있어서 살아 있을 때만 지운다.
+	if (ACharacterPreviewActor* Preview = mPreviewActor.Get())
+		Preview->Destroy();
+
 	mInventoryComponent.Reset();
 	mASC.Reset();
+	mPreviewActor.Reset();
 
 	Super::NativeDestruct();
 }
@@ -163,6 +195,11 @@ void UCharacterInfoWidget::EquipChange(UItemObject* Item, int32 Index)
 {
 	if (mEquipSlotArray.IsValidIndex(Index))
 		mEquipSlotArray[Index]->SetItem(Item);
+
+	// 무기를 끼고 벗으면 미리보기 손의 무기도 맞춘다.
+	// (RefreshEquipSlot이 플레이어 무기 표시를 먼저 바꾼 뒤 알리므로 바뀐 상태가 복사된다)
+	if (ACharacterPreviewActor* Preview = mPreviewActor.Get())
+		Preview->CopyAppearance(Cast<AElmCharacterBase>(GetOwningPlayerPawn()));
 }
 
 void UCharacterInfoWidget::OnAttributeChanged(const FOnAttributeChangeData& Data)

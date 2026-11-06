@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CelebrationWidget.h"
@@ -14,14 +14,14 @@ void UCelebrationWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 
-	// ¶ç¿ï ¹®±¸°¡ ¾øÀ¸´Ï ¼û±ä Ã¤·Î ½ÃÀÛÇÑ´Ù.
+	// ë„ìš¸ ë¬¸êµ¬ê°€ ì—†ìœ¼ë‹ˆ ìˆ¨ê¸´ ì±„ë¡œ ì‹œìž‘í•œë‹¤.
 	SetVisibility(ESlateVisibility::Collapsed);
 }
 
 void UCelebrationWidget::NativeDestruct()
 {
-	// ·¹º§ ÀÌµ¿À¸·Î HUD°¡ »ç¶óÁú ¶§ ³²Àº ÁÙÀ» ¹ö¸°´Ù.
-	// ±×·¡¾ß ¸ØÃá ¾Ö´Ï¸ÞÀÌ¼ÇÀÇ OnAnimationFinished°¡ »ç¶óÁö´Â À§Á¬¿¡ ´ÙÀ½ ¹®±¸¸¦ ¶ç¿ìÁö ¾Ê´Â´Ù.
+	// ë ˆë²¨ ì´ë™ìœ¼ë¡œ HUDê°€ ì‚¬ë¼ì§ˆ ë•Œ ë‚¨ì€ ì¤„ì„ ë²„ë¦°ë‹¤.
+	// ê·¸ëž˜ì•¼ ë©ˆì¶˜ ì• ë‹ˆë©”ì´ì…˜ì˜ OnAnimationFinishedê°€ ì‚¬ë¼ì§€ëŠ” ìœ„ì ¯ì— ë‹¤ìŒ ë¬¸êµ¬ë¥¼ ë„ìš°ì§€ ì•ŠëŠ”ë‹¤.
 	mPending.Empty();
 
 	Super::NativeDestruct();
@@ -31,7 +31,7 @@ void UCelebrationWidget::Push(const FText& Title, const FText& SubText)
 {
 	mPending.Add(FCelebrationEntry{ Title, SubText });
 
-	// ÀÌ¹Ì ÇÏ³ª¸¦ º¸¿© ÁÖ´Â ÁßÀÌ¸é ±â´Ù¸°´Ù. ±× ¾Ö´Ï¸ÞÀÌ¼ÇÀÌ ³¡³¯ ¶§ OnAnimationFinished°¡ ²¨³» ÁØ´Ù.
+	// ì´ë¯¸ í•˜ë‚˜ë¥¼ ë³´ì—¬ ì£¼ëŠ” ì¤‘ì´ë©´ ê¸°ë‹¤ë¦°ë‹¤. ê·¸ ì• ë‹ˆë©”ì´ì…˜ì´ ëë‚  ë•Œ OnAnimationFinishedê°€ êº¼ë‚´ ì¤€ë‹¤.
 	if (mPending.Num() == 1)
 		ShowFront();
 }
@@ -43,8 +43,8 @@ void UCelebrationWidget::ShowFront()
 	mTitleText->SetText(Entry.Title);
 	mSubText->SetText(Entry.SubText);
 
-	// º¸ÀÌ±â¸¸ ÇÏ°í Å¬¸¯Àº µÚ·Î Åë°ú½ÃÅ²´Ù. ¶° ÀÖ´Â µ¿¾È¿¡µµ °ø°Ý / ÀÎº¥Åä¸® Å¬¸¯ÀÌ ¸·È÷Áö ¾Ê´Â´Ù.
-	// ¼û°ÜÁø(Collapsed) À§Á¬Àº TickÀÌ µ¹Áö ¾Ê¾Æ ¾Ö´Ï¸ÞÀÌ¼Çµµ ¸ØÃß¹Ç·Î, º¸ÀÌ°Ô ÇÑ ´ÙÀ½¿¡ Àç»ýÇÑ´Ù.
+	// ë³´ì´ê¸°ë§Œ í•˜ê³  í´ë¦­ì€ ë’¤ë¡œ í†µê³¼ì‹œí‚¨ë‹¤. ë–  ìžˆëŠ” ë™ì•ˆì—ë„ ê³µê²© / ì¸ë²¤í† ë¦¬ í´ë¦­ì´ ë§‰ížˆì§€ ì•ŠëŠ”ë‹¤.
+	// ìˆ¨ê²¨ì§„(Collapsed) ìœ„ì ¯ì€ Tickì´ ëŒì§€ ì•Šì•„ ì• ë‹ˆë©”ì´ì…˜ë„ ë©ˆì¶”ë¯€ë¡œ, ë³´ì´ê²Œ í•œ ë‹¤ìŒì— ìž¬ìƒí•œë‹¤.
 	SetVisibility(ESlateVisibility::HitTestInvisible);
 	PlayAnimation(mShowAnim);
 
@@ -56,7 +56,7 @@ void UCelebrationWidget::OnAnimationFinished_Implementation(const UWidgetAnimati
 {
 	Super::OnAnimationFinished_Implementation(Animation);
 
-	// ´Ù¸¥ ¾Ö´Ï¸ÞÀÌ¼ÇÀÌ°Å³ª, ÁÙÀÌ ºñ¾ú´Âµ¥ ºÒ¸° °æ¿ì(À§Á¬ÀÌ »ç¶óÁú ¶§)´Â ¹«½ÃÇÑ´Ù.
+	// ë‹¤ë¥¸ ì• ë‹ˆë©”ì´ì…˜ì´ê±°ë‚˜, ì¤„ì´ ë¹„ì—ˆëŠ”ë° ë¶ˆë¦° ê²½ìš°(ìœ„ì ¯ì´ ì‚¬ë¼ì§ˆ ë•Œ)ëŠ” ë¬´ì‹œí•œë‹¤.
 	if (Animation != mShowAnim.Get() || mPending.IsEmpty())
 		return;
 

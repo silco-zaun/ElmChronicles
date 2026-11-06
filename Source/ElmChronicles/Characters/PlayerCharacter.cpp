@@ -8,6 +8,7 @@
 #include "../AI/TeamTypes.h"
 #include "../Animations/AnimInstances/PlayerAnimInstance.h"
 #include "../Data/Tables/LevelStatTableRow.h"
+#include "../Data/Tables/MovementTableRow.h"
 #include "../Data/Tables/PlayerCharacterTableRow.h"
 #include "../GameModes/ElmGameModeBase.h"
 #include "../Input/DefaultInput.h"
@@ -41,6 +42,9 @@ APlayerCharacter::APlayerCharacter()
 	// 외형(메시, ABP, 무기, 캡슐)과 능력치는 DT_Player의 이 행에서 읽는다. (InitAttributes)
 	mRowName = TEXT("Kyle");
 
+	// 이동 감각(가속, 회전, 점프, 공중 제어)은 DT_Movement의 이 행에서 읽는다. (InitMovement)
+	mMovementRowName = TEXT("Player");
+	
 	mSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
 	mCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
 	//mHPBarBillboardWidgetComponent = CreateDefaultSubobject<UBillboardWidgetComponent>(TEXT("HPBarBillboardWidgetComponent"));
@@ -153,6 +157,10 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 		PlayerEnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Jump")),
 			ETriggerEvent::Started, this, &APlayerCharacter::JumpKey);
+		
+		// 키를 놓으면 상승을 멈춘다. JumpMaxHoldTime(DT_Movement)이 0보다 크면 이것으로 점프 높이가 정해진다.
+		PlayerEnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Jump")),
+			ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
 		PlayerEnhancedInputComponent->BindAction(DefaultInputCDO->FindInputAction(TEXT("Attack")),
 			ETriggerEvent::Started, this, &APlayerCharacter::AttackKey);
@@ -257,6 +265,12 @@ void APlayerCharacter::InitAttributes()
 	if (!AssetSubsystem || !AssetSubsystem->IsDataLoaded())
 		return;
 
+	// 이동 감각은 고른 캐릭터(DT_Player 행)와 상관없으므로 그 행을 찾기 전에 넣는다.
+	// 이동은 클라이언트도 직접 계산(예측)하므로 서버와 클라이언트 모두 같은 값을 넣는다. (권한 검사 앞)
+	// 행이 없으면 엔진 기본값으로 움직인다. (FindRow가 로그를 남긴다)
+	if (const FMovementTableRow* MovementInfo = AssetSubsystem->FindRow<FMovementTableRow>(mMovementRowName))
+		InitMovement(*MovementInfo);
+
 	const FPlayerCharacterTableRow* Info = AssetSubsystem->FindRow<FPlayerCharacterTableRow>(mRowName);
 
 	if (!Info)
@@ -312,6 +326,23 @@ void APlayerCharacter::InitAttributes()
 	// 경험치와 골드는 죽어도 그대로 이어진다. (사망 페널티 없음)
 	mASC->SetNumericAttributeBase(UPlayerAttributeSet::GetExpAttribute(), Save->Exp);
 	mASC->SetNumericAttributeBase(UPlayerAttributeSet::GetGoldAttribute(), Save->Gold);
+}
+
+void APlayerCharacter::InitMovement(const FMovementTableRow& Info)
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+
+	Movement->MaxAcceleration = Info.MaxAcceleration;
+	// 이동 방향으로 몸을 돌리는 캐릭터(bOrientRotationToMovement)라 Yaw만 쓴다.
+	Movement->RotationRate = FRotator(0.0, Info.RotationRate, 0.0);
+	Movement->GravityScale = Info.GravityScale;
+	Movement->JumpZVelocity = Info.JumpZVelocity;
+	Movement->AirControl = Info.AirControl;
+	Movement->AirControlBoostMultiplier = Info.AirControlBoostMultiplier;
+	Movement->BrakingDecelerationFalling = Info.BrakingDecelerationFalling;
+
+	// 점프 키를 누른 시간은 이동 컴포넌트가 아니라 캐릭터(ACharacter)가 센다.
+	JumpMaxHoldTime = Info.JumpMaxHoldTime;
 }
 
 void APlayerCharacter::OnExpGained()
