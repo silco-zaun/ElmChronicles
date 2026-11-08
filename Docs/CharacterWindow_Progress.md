@@ -24,6 +24,7 @@ C 키로 여는 캐릭터 창을 만든다. 가운데에는 Idle 자세의 캐�
 | 선택된 탭 표시 | 지금 탭의 버튼을 `SetIsEnabled(false)`로 끈다(흐리게 그려진다) | 스타일을 따로 만들지 않아도 된다. |
 | 창 이동 | **넣지 않았다.** 캐릭터 창은 화면 왼쪽 가운데에 고정된다 | 인벤토리의 타이틀바 드래그 코드(약 50줄)를 옮겨야 한다. 필요하면 나중에 한다. |
 | 아이템 정보창 위치 | 장비칸 아이콘이면 캐릭터 창 **오른쪽**, 가방 아이콘이면 인벤토리 **왼쪽**에 붙인다(`ShowItemInfoWidget(bool, ESlotType)` → `PlaceItemInfoNextTo`) | 두 창이 화면 양쪽에 있어서, 정보창이 화면 안쪽으로 뜨게 한다. |
+| 미리보기 색 맞추기 | **캡처 2개**: 색 캡처(`FinalColorLDR`, 수동 노출) + 실루엣 캡처(`SceneColorHDR`, 알파만). 머티리얼이 실루엣으로 색을 오려 낸다 | 2026-11-08 사용자 선택. 버린 안: 프로젝트 설정 "Alpha Output"(게임 화면 전체의 후처리에 알파가 실리고 TSR 비용이 는다), 머티리얼에서 톤 커브 흉내(엔진 Filmic과 같아지지 않는다), 불투명 배경(창이 비치지 않는다). |
 
 ## 주의
 
@@ -37,10 +38,13 @@ C 키로 여는 캐릭터 창을 만든다. 가운데에는 Idle 자세의 캐�
 8. **에디터가 꺼지는 중에 빌드하면 `UnrealEditor-ElmChronicles-0001.dll`이 생긴다.** 2026-11-05 17:07 빌드가 그랬다. Hot Reload는 없었고, 모듈 목록이 `-0001`을 가리켜서 해롭지는 않았다. 작업 관리자에서 `UnrealEditor`가 사라진 것을 보고 빌드한다.
 9. **WBP를 만드는 동안 나는 BindWidget 에러는 정상이다.** `A required widget binding "mXxx" ... was not found`는 그 이름의 위젯을 다 놓으면 사라진다. `WBP_PlayerHUD`도 `mCharacterInfoWidget`을 놓기 전까지 같은 에러가 난다.
 10. **`IA_CharacterInfo`는 빌드 전에 있어야 한다.** `UDefaultInput` CDO가 에디터를 시작할 때 경로로 찾는다. 3단계의 `RT_CharacterPreview`도 같다(미리보기 액터 생성자가 `ConstructorHelpers`로 찾는다).
-11. **SceneCapture의 `SCS_SceneColorHDR`에는 노출(Exposure)이 적용되지 않는다.**
-    - 원인: 캡처는 기본적으로 View State가 없어서 PreExposure가 1이다(엔진 `PostProcessEyeAdaptation.cpp`의 PreExposure 계산). 화면과 달리 자동 노출이 밝기를 맞춰 주지 않는다.
-    - 그래서 미리보기 밝기는 미리보기 조명의 세기로만 정해진다. 너무 어둡거나 하얗게 날아가면 조명 Intensity를 고친다.
-    - 같은 이유로 톤매핑과 안티에일리어싱도 없다. RT를 표시 크기(280)보다 크게(512) 잡아 가장자리 계단을 줄인다.
+11. **SceneCapture의 `SCS_SceneColorHDR`는 후처리를 통째로 건너뛴다.** 노출, 톤매퍼, 블룸, 안티에일리어싱이 모두 없다.
+    - 원인: Scene Color 계열 캡처는 `SetResolveScene(false)`로 만들어져 후처리 패스가 돌지 않는다(엔진 `SceneCaptureRendering.cpp:912`). 노출은 `bResolveScene`이 켜져 있어야 적용되므로(`PostProcessEyeAdaptation.cpp` `IsPreExposureRelevant`) 1로 남는다.
+    - 그래서 월드보다 밝고 물 빠진 색으로 보였다(2026-11-08 사용자 화면). 고친 방법은 아래 "색 맞추기"다.
+    - `FinalColorLDR`로 바꾸면 후처리가 돌지만, 캡처가 자기 화면으로 자동 노출을 계산한다. 화면 대부분이 빈 배경(검정)이라 노출이 올라간다. 그래서 캡처의 `PostProcessSettings`로 노출을 Manual로 고정한다.
+    - Manual + `AutoExposureApplyPhysicalCameraExposure` 끔이면 노출 = 2^Exposure Compensation이다(기본 `r.EyeAdaptation.LensAttenuation` 0.78에서 EV100 0 = 휘도 1). 0이면 `SceneColorHDR` 시절과 같은 밝기다. Manual은 적응 없이 바로 그 값이 된다(`ForceTarget`, `PostProcessEyeAdaptation.cpp:723`).
+    - 안티에일리어싱이 없으므로 RT를 표시 크기(280)보다 크게(512) 잡아 가장자리 계단을 줄인다.
+    - 프로젝트 설정 이름: 5.8에서 후처리 알파 설정은 **Alpha Output**(`r.PostProcessing.PropagateAlpha`)이고 재시작 없이 바꿀 수 있다(`RendererSettings.h:788`). 예전 이름은 "Enable alpha channel support in post processing"이다. 이 프로젝트는 끈 채로 둔다.
 12. **SceneColorHDR의 알파는 뒤집혀 있다.** 엔진 `SceneCapturePixelShader.usf` 주석에 따르면 A = 1 − 불투명도라, 배경이 1이고 캐릭터가 0이다. 머티리얼 Opacity에 `1 − A`를 넣어야 배경이 투명해진다.
 13. **맵의 태양을 캡처에서 빼려면 Show Flag가 아니라 조명 채널을 쓴다.** `ShowFlags.DirectionalLights`는 `SHOWFLAG_FIXED_IN_SHIPPING(1, ...)`라 Shipping 빌드에서 끌 수 없다(엔진 `ShowFlagsValues.inl`). 그래서 미리보기 메시와 미리보기 조명을 조명 채널 1만 쓰게 한다. 맵 조명(채널 0)은 미리보기를 비추지 않고, 미리보기 조명은 맵을 비추지 않는다. 다만 스카이라이트는 조명 채널을 따르지 않아서 `ShowFlags.SetSkyLighting(false)`로 끈다(Shipping에서도 끌 수 있는 플래그다).
 14. **`ShowOnlyActors.Add(this)`는 생성자가 아니라 `BeginPlay`에서 한다.** 생성자에서 넣으면 CDO 포인터가 기본값으로 들어가 인스턴스에 복사된다.
@@ -90,7 +94,7 @@ void SetCharacterInfoOpen(bool Open);  // HUD + RefreshInputMode. 대화 시작(
 |---|---|---|
 | 1 | 장비 로직: 착용 / 해제 / 맞바꿈, 장비 GE, 무기 보이기, 메모, 아이템 줍기 제거, 더블클릭 착용 | ☑ (2026-11-05 PIE 확인. 더블클릭은 2단계 확인 표에서 함께 본다) |
 | 2 | 캐릭터 창: C 키, 탭, 장비칸 3개, 장비칸 해제, 능력치 표시, 정보창 위치 | ☑ (커밋 `0e7ef54`, 2026-11-06 사용자 PIE 확인) |
-| 3 | 가운데 캐릭터 미리보기 | ◐ 코드, 에셋, 미리보기 표시까지 반영됐다(2026-11-06 PIE 화면 확인, 아직 커밋 전). 조명을 레벨의 태양 / 스카이라이트로 바꾸는 중이다(아래 "조명 2차"). `CharacterPreviewActor.cpp`는 UTF-8(BOM)로 다시 저장됐다 |
+| 3 | 가운데 캐릭터 미리보기 | ◐ 조명 2차까지 커밋됐다(`c34fb6c`). 월드와 색이 다른 문제를 "캡처 2개" 방식으로 고치는 중이다(아래 "색 맞추기", 2026-11-08 가이드 전달, 반영 전) |
 | 4 | 마무리: CLAUDE.md 갱신, 커밋, 이 문서 정리 | ◐ CLAUDE.md에 캐릭터 창(2단계)을 적었다. 미리보기(3단계)와 문서 정리가 남았다 |
 
 ### 1단계: 장비 로직 (완료)
@@ -156,7 +160,7 @@ void SetCharacterInfoOpen(bool Open);  // HUD + RefreshInputMode. 대화 시작(
     - 점광원의 반경 마스크(엔진 `DeferredLightingCommon.ush`의 `LightRadiusMask = Square(saturate(1 - Square(d² / R²)))`)가 Attenuation Radius 3000에서 주광을 65%, 보조광을 78%로 깎았다.
     - 하늘색 보조광은 흰색보다 휘도가 약 절반이다.
     - 그림자가 생기자 투구 아래 얼굴에는 약한 보조광만 닿았다.
-- 조명 2차(2026-11-06 사용자 요청 "레벨 라이트를 반영", 가이드 전달, 반영 전):
+- 조명 2차(2026-11-06 사용자 요청 "레벨 라이트를 반영". 코드는 `c34fb6c`에 반영됐다. 2026-11-08 unreal-mcp로 본 `M_CharacterPreview`에는 `Brightness` 파라미터가 없다(Texture Sample, OneMinus, Substrate UI뿐):
   - 미리보기 전용 조명을 지우고, 레벨의 Directional Light(태양)와 Sky Light로 비춘다.
     - 둘은 맵 어디에나 닿아서 Z 100000의 미리보기도 플레이어와 같은 빛을 받는다.
     - 9개 맵 모두 둘 다 있다(`.umap` 문자열로 확인). 실내 맵의 점광원(등불)은 닿지 않는다.
@@ -167,6 +171,16 @@ void SetCharacterInfoOpen(bool Open);  // HUD + RefreshInputMode. 대화 시작(
   - 돌리는 이유: Field 해의 Rotation은 Pitch −49.5, Yaw −10.3이다. 빛이 +X 쪽으로 나아가므로 해는 −X 쪽에 있다. 미리보기는 +X를 보고 카메라도 +X에 서 있어서, 그대로 두면 해를 등지고 얼굴이 그림자에 묻힌다.
   - `Brightness`가 필요한 이유: 캡처에는 자동 노출이 없다. Field의 태양(6 lux)과 하늘빛을 그대로 받으면 1차 조명보다 2~3배 밝을 것으로 보았다(추정, PIE에서 맞춘다).
   - 남는 위험: 맵마다 태양 / 스카이라이트 세기가 다르면 미리보기 밝기도 맵마다 달라진다. 게임 화면은 자동 노출이 가려 주지만 미리보기는 그렇지 않다. 실내 맵의 값은 아직 보지 않았다.
+- 색 맞추기(2026-11-08, 캡처 2개, 가이드 전달, 반영 전):
+  - 문제: 미리보기가 월드 캐릭터보다 밝고 물 빠진 색이다. 원인은 주의 11(후처리 없음)이다. Field에는 PostProcessVolume이 없어서 게임 화면은 프로젝트 기본 자동 노출 + Filmic 톤매퍼 + Local Exposure(0.8)를 쓴다.
+  - 구성:
+    - `mCapture`(이름 `Capture`) = 색 캡처. `SCS_FinalColorLDR` → `RT_CharacterPreview`. 노출 Manual, 물리 카메라 끔, Exposure Compensation(`AutoExposureBias`) 0에서 시작해 PIE에서 맞춘다.
+    - `mMaskCapture`(이름 `MaskCapture`, 새로 추가) = 실루엣 캡처. `SCS_SceneColorHDR` → `RT_CharacterPreviewMask`(새 RT). 알파만 쓰므로 `DynamicShadows`를 끈다.
+    - 공통 설정(위치, FOV, Show Only, 안개 / 대기 끔, 안티에일리어싱 끔)은 익명 네임스페이스의 `SetupPreviewCapture`가 한다.
+    - `M_CharacterPreview`: Color = `RT_CharacterPreview`.RGB, Opacity = 1 − `RT_CharacterPreviewMask`.A
+  - 안티에일리어싱을 끄는 이유: 색 캡처만 TSR로 테두리가 부드러우면, 검은 배경과 섞인 테두리 픽셀이 실루엣 안에 남아 검은 테두리가 된다. 두 캡처 모두 계단 테두리로 맞춘다.
+  - `RT_CharacterPreview`는 RGBA16f 그대로 둔다. 실수 형식 RT는 `UTextureRenderTarget2D::GetDisplayGamma`가 1.0이라 톤매퍼가 감마를 씌우지 않은 값을 쓴다(엔진 `TextureRenderTarget2D.cpp:716`, `PostProcessTonemap.cpp:280`). 그래서 UI 머티리얼이 지금처럼 선형 값으로 받는다.
+  - 남는 차이: 캡처에는 Lumen GI가 없어서(주의 15) 바닥(노란 잔디)의 반사광이 없다.
 - 버린 안: 미리보기 전용 Idle 애니메이션을 생성자 경로로 지정하는 안. 플레이어 ABP를 복사하면 DT_Player 행(리그)을 따라가고 경로를 코드에 적지 않아도 된다.
 - 넣지 않은 것: 마우스 드래그로 회전시키기.
 - 테스트:
@@ -196,9 +210,11 @@ void SetCharacterInfoOpen(bool Open);  // HUD + RefreshInputMode. 대화 시작(
 | `Content/UI/Game/WBP_PlayerHUD` | `mCharacterInfoWidget` 배치: 왼쪽 가운데 앵커, Position (40, 0), Alignment (0, 0.5), Size To Content. Hierarchy에서 `mItemInfoWidget` / `mCelebrationWidget` / `mMenuWidget` / `mConfirmWidget`보다 앞 | 사용자 | ☑ |
 | `Content/Data/DT_Item` | `DataSource/DT_Item.csv`(Mesh 열 삭제)로 다시 임포트 | 사용자 | ☑ |
 | `Content/Data/DT_Player` | `DataSource/DT_Player.csv`(Kyle 무기 메시)로 다시 임포트 | 사용자 | ☑ |
-| `Content/UI/Game/RT_CharacterPreview` | Render Target 512×512, RTF RGBA16f. **빌드 전에** 만든다 | 사용자 | ☐ |
-| `Content/UI/Game/M_CharacterPreview` | Domain User Interface, Blend Mode Translucent(Substrate 표기 `TranslucentGreyTransmittance`). Texture Sample(RT) → `Substrate UI`(Color = RGB, Opacity = 1 − A) → Front Material | 사용자 | ☐ |
-| `Content/UI/Game/WBP_CharacterInfo` (3단계) | 장비 탭 가운데(무기 열과 갑옷 열 사이)에 Image: 브러시 `M_CharacterPreview`, Image Size 280×280, 슬롯 Fill + 가운데 정렬 | 사용자 | ☐ |
+| `Content/UI/Game/RT_CharacterPreview` | Render Target 512×512, RTF RGBA16f. **빌드 전에** 만든다 | 사용자 | ☑ |
+| `Content/UI/Game/M_CharacterPreview` | Domain User Interface, Blend Mode Translucent(Substrate 표기 `TranslucentGreyTransmittance`). Texture Sample(RT) → `Substrate UI`(Color = RGB, Opacity = 1 − A) → Front Material | 사용자 | ☑ |
+| `Content/UI/Game/WBP_CharacterInfo` (3단계) | 장비 탭 가운데(무기 열과 갑옷 열 사이)에 Image: 브러시 `M_CharacterPreview`, Image Size 280×280, 슬롯 Fill + 가운데 정렬 | 사용자 | ☑ |
+| `Content/UI/Game/RT_CharacterPreviewMask` (색 맞추기) | `RT_CharacterPreview`를 복제한다(512×512, RGBA16f). **빌드 전에** 만든다 | 사용자 | ☐ |
+| `Content/UI/Game/M_CharacterPreview` (색 맞추기) | Texture Sample을 하나 더 두고(`RT_CharacterPreviewMask`), 그 A를 OneMinus에 잇는다. 원래 샘플은 RGB → Color만 남는다 | 사용자 | ☐ |
 
 ## 진행 방식
 - **Claude는 C++ 소스와 에셋을 직접 고치지 않는다.** 단계마다 따라 하는 가이드를 준다(준비 → 파일:위치 → 바꾸기 전 / 후 코드 → 빌드 → PIE 확인, 단계마다 짧은 "왜"). 사용자가 붙여 넣고 빌드하고 에디터 작업을 한다.

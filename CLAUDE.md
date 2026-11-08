@@ -27,6 +27,8 @@ Unreal Engine 5.8 C++ 싱글플레이 액션 RPG. 런타임 모듈은 `ElmChroni
   - 맵은 `MapsToCook`이 비어 있어서 `/Game/Maps` 아래가 모두 쿠킹된다. 그 밖의 에셋은 맵이나 C++(`ConstructorHelpers`)이 참조해야 들어간다. 경로나 PrimaryAssetId로만 찾는 에셋은 따로 쿠킹 규칙이 있어야 한다(아래 `DA_GameData`).
 - `.mcp.json`의 `unreal-mcp`(`http://127.0.0.1:8000/mcp`)는 `ModelContextProtocol` 플러그인이 띄우는 서버라서 에디터가 실행 중일 때만 연결된다.
   - 함정(2026-11-06): `set_actor_transform`에 scale만 주면 location / rotation이 0으로 초기화된다(설명과 다르다). 항상 세 값을 모두 준다. 컴포넌트의 Parent Socket(`AttachSocketName`)은 `set_properties`로 읽지도 쓰지도 못하므로 사용자가 Details에서 고른다. 새 맵은 `AssetTools.duplicate`로 템플릿을 복제한 뒤 `save_assets`를 먼저 해야 `load_level`이 열린다.
+  - 함정(2026-11-08): 컴포넌트 `BodyInstance`를 `set_properties`로 바꾸면 `CollisionProfileName`만 바뀌고 `CollisionEnabled`는 그대로다. 맵을 저장하고 다시 열어도 프로필대로 맞춰지지 않아서, Details에는 `NoCollision`인데 실제로는 막히는 상태가 된다. 인스턴스 충돌 프리셋은 사용자가 Details에서 바꾼다. 메시 에셋의 `BodySetup.CollisionTraceFlag`와 `StaticMeshTools.remove_collisions`는 잘 된다. 지금 열린 맵에 `load_level`을 다시 부르면 디스크에서 다시 읽지 않는다.
+  - 함정(2026-11-08): `set_actor_transform`은 `OnConstruction`을 다시 돌리지 않는다. `AAISpawner::mPatrolPoints`는 `OnConstruction`이 스플라인에서 계산해 월드 좌표로 저장하는 값이라, 스포너를 옮긴 뒤에도 옛 자리를 가리킨다. 아무 프로퍼티나 같은 값으로 `set_properties`(예: `mSpawnDelay`)하면 다시 계산된다. `mSpawnKind`는 건드리지 않는다(`PostEditChangeProperty`가 `mRowName`을 비운다).
 - 렌더링은 Substrate(`DefaultEngine.ini` `r.Substrate=True`)라서 머티리얼 Blend Mode 이름이 예전과 다르다. Translucent는 `TranslucentGreyTransmittance`, Modulate는 `ColoredTransmittanceOnly`다(엔진 `EngineTypes.h`에서 같은 값). 가이드에 예전 이름을 적지 않는다(2026-11-04).
 
 ## 아키텍처
@@ -90,9 +92,15 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 아군/적 구분은 **충돌 채널이 아니라 팀**이 한다. 모든 캐릭터 캡슐은 `Pawn` 프로필이고, 공격 판정은 `ElmChannels::MakeCharacterObjectQuery()`(ECC_Pawn)로 찾은 뒤 `IsHostile`로 거른다.
 - 팀 관계는 `AI/TeamTypes.h`의 `SolveTeamAttitude` 관계표 하나가 정한다. 모듈 `StartupModule`에서 `FGenericTeamId::SetAttitudeSolver`로 등록되며, AI 시야와 공격 판정이 모두 이것을 거친다.
 - 커스텀 채널은 `Interaction`(ECC_GameTraceChannel1, 기본 Ignore) 하나다. 채널을 추가하면 `ElmCollisionChannels.h`를 `DefaultEngine.ini` 순서와 맞춘다. 채널을 지울 때는 `DefaultEngine.ini`의 `+EditProfiles=`(엔진 기본 프리셋의 커스텀 채널 응답) 줄과 `CollisionChannelRedirects`에 그 이름이 남지 않게 에디터를 끄고 직접 지운다. 남으면 에디터 시작 때 `LogCollisionProfile: ... Custom Channel Name = '...' hasn't been found` 경고가 프리셋마다 난다(2026-11-01 예전 Player/Monster/PlayerAttack/MonsterAttack 잔재를 정리했다).
-- KayKit 메시는 임포트 때 만들어진 단순 콜리전이 메시 전체를 덮는 볼록 껍질(convex hull) 하나다. 그래서 문틀이나 성문처럼 구멍이 있는 메시는 구멍까지 막는다. 캐릭터 이동은 단순 콜리전을 쓰므로, 지나가야 하는 메시는 Collision Complexity를 `Use Complex Collision As Simple`로 바꾼다.
-  - 2026-10-30에 바꾼 메시: `Dungeon/Assets/wall_doorway_scaffold`(Hospital / KyleHouse / Shop / Tavern, KyleHouse 방에서 나갈 수 없던 버그), `MedievalHexagon/.../Neutral/wall_straight_gate`·`wall_corner_A_gate`(Field의 `Gate_*` 5개, 성문을 지나갈 수 없던 버그).
-  - `wall_doorway`(Palace / VoidRaindungeon)는 아직 그대로다. 실내 맵 출구 문틀은 그 안에 놓인 문 메시(`*_door`, 볼록 껍질 콜리전)가 막는다.
+- KayKit 메시는 임포트 때 만들어진 단순 콜리전이 메시 전체를 덮는 볼록 껍질(convex hull) 하나다. 그래서 문틀, 성문, 언덕의 두 육각형 사이 틈, 나무 묶음 사이처럼 오목한 곳까지 막아 보이지 않는 벽 / 경사면이 된다(캐릭터 이동은 단순 콜리전을 쓴다).
+  - **규칙(2026-11-08): 큰 메시는 모양대로, 작은 메시는 통과.** 맵에 놓인 KayKit 메시는 모두 Collision Complexity가 `Use Complex Collision As Simple`이다(지형, 나무, 덤불, 건물, 벽, 바닥, 소품. 지형 계열은 레벨에 없는 것까지 팩 전체). 풀(`ForestNature/Assets/Grass_*`)과 수초(`Natrue/waterlily_*` / `waterplant_*`)만 충돌이 없다: 단순 콜리전을 지우고(Collision → Remove Collision) `Use Simple Collision As Complex`로 둔다. 단순 콜리전만 지우면 Complex 트레이스(AI 시야는 `bTraceComplex`)에 계속 걸리기 때문이다. 새 메시를 맵에 놓을 때도 이 규칙을 따른다.
+  - 덤불은 레벨에 놓인 크기가 2 m 이상이라 "큰 메시"로 보았다.
+  - 작은 돌: `rock_single_B` / `D`는 Field에서는 10배(높이 1.4 ~ 1.6 m)로, KyleHouse / Tavern(3.2배, 43 ~ 52 cm)과 OrcCave(4배, 54 ~ 65 cm)에서는 자갈 크기로 놓여 있어 에셋 설정으로 나눌 수 없다. 자갈 크기 인스턴스는 레벨에서 Collision Presets를 `NoCollision`으로 바꾼다.
+  - Kenney Platformer Kit(`Content/Assets/Kenny/platformer-kit`, 2026-11-09 임포트)도 같은 규칙이다. 임포트 때 Import Collisions를 꺼서 단순 콜리전이 처음부터 없다. 그래서 Remove Collision 없이 Collision Complexity만으로 나눈다: 134개는 `Use Complex Collision As Simple`, 작은 장식 14개(`grass`, `flowers(-tall)`, `plant`, `mushrooms`, `stones`, `coin-*`, `jewel`, `heart`, `star`, `key`, `lock`)는 `Use Simple Collision As Complex`(= 충돌 없음)다. 이 킷의 메시를 Collision Complexity `Default`로 두면 캐릭터가 통과하므로 새로 임포트할 때도 둘 중 하나로 정한다.
+    - 임포트 옵션(Interchange FBX): **Asset Type Sub Folders** 켬(텍스처와 머티리얼이 둘 다 `colormap`이라 한 폴더면 엔진이 `...override an asset of a different class` 에러를 내고 하나를 만들지 않는다), **Force All Mesh As Type = Static Mesh**(기본값이면 열기 / 토글 애니메이션이 있는 문 · 레버 · 버튼 · 상자 · 가시 함정 8개가 Skeletal로 들어온다), **Combine Static Meshes = Combine All**(부품이 여러 개인 10개가 갈라지고, `spring.fbx`의 부품 `platform`이 `platform.fbx`와 이름이 겹친다). 캐릭터 `character-*` 5개(0.91 m 스켈레탈)는 넣지 않았다.
+    - 크기: 블록 1개 = 1 m, 피벗은 바닥 중앙이다. 킷은 키 0.91 m 캐릭터 기준이고 우리 플레이어는 약 2.2 m(캡슐 반높이 110)라 비율을 맞추려면 ×2로 놓는다. ×2에서 한 칸 오르막(1 m 이하)은 `-low` 블록(0.5 m)이다.
+  - 메시의 충돌 설정을 바꾸면 그 메시를 쓰는 맵의 NavMesh가 예전 충돌로 구워진 채 남는다(`DefaultEngine.ini`에 런타임 생성 설정이 없어 정적 NavMesh다). 맵을 열고 Build → Build Paths 후 저장한다.
+  - 문 메시(`*_door`)가 없는 `wall_doorway`는 이제 문틀이 열려 있다(Palace / VoidRaindungeon에 `wall_doorway` 5개, 문 2개). 실내 맵 출구 문틀은 그 안에 놓인 문 메시가 막는다.
   - 확인: unreal-mcp `trace_world`는 막힌 구멍도 그냥 통과하므로 쓸 수 없다. 맵을 에디터에 열고 Simulate를 켠 채 `find_actors`(bounds + `ObjectTypeQuery1`) 겹침 검사를 한다(실제 PIE에서 레벨 이동한 뒤에는 `find_actors`가 PIE 월드를 보지 않는다). 겹침 검사는 삼각형 콜리전의 표면만 잡으므로, 상자가 벽 표면을 가로지르게 둔다.
 
 ### AI
@@ -115,6 +123,43 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 사망: `APlayerCharacter::OnKilledBy` → `AElmGameModeBase::PlayerKilled` → 2초 뒤 `TravelToLevel(Hospital, "Respawn")`. 메모의 HP가 0이면 죽어서 온 것으로 보고 `InitAttributes`가 HP / MP를 가득 찬 채로 둔다(부활 코드는 따로 없다). 사망 페널티는 없다.
 - 디스크 저장: `USaveSubsystem::SaveToDisk` = `WritePlayer` + `SaveGameToSlot(mSaveGame, "ElmSave", 0)`(`Saved/SaveGames/ElmSave.sav`). 메뉴 "저장하기"만 부른다. 이동 중이거나 죽었으면 쓰지 않는다. 불러오기는 아직 없다(메모에 맵 / 위치가 없다).
 - 결정 이유와 함정 기록은 끝나서 지운 진행 문서에 있다: `git show d3b7deb:Docs/LevelTravel_Progress.md`.
+
+### Field 맵 (하늘 섬)
+
+- 2026-11-08 "엘름 왕국은 하늘에 뜬 섬" 컨셉으로 바꿨다(StackOBot처럼 섬 사이를 점프로 건넌다). 바꾸기 전 맵은 사용자가 만든 `Field_Backup`이다.
+- 땅(2026-11-09): KayKit 육각 타일을 모두 지우고 Kenney Platformer Kit 블록으로 바꿨다(아웃라이너 `SkyIslands/Ground/<섬>`, 라벨 `K_<섬>_<i>_<j>`). 10 m 격자이고 칸 (i, j)의 중심은 ((i + 0.5) × 1000, (j + 0.5) × 1000)이다. +X가 북, +Y가 동이다. 블록 윗면이 섬 높이(본섬 0, 요새 800, 동굴 −600)이고 두께는 10 m다(블록 z = 섬 높이 − 1000).
+  - 배율 10(한 칸 = 1 m 블록 하나)이다. 위 Kenney 항목의 "×2"는 캐릭터와 비율을 맞추는 기준인데, 본섬(약 32만 m²)을 ×2로 덮으면 블록이 수만 개라 땅만 ×10으로 놓았다. 징검다리 발판과 언덕 자리의 단은 캐릭터 기준 크기다.
+  - 해안 칸: 열린 면이 하나면 `block-grass-overhang-edge`(Yaw 0에서 아래가 깎인 면이 +Y. 열린 면이 +Y / −X / −Y / +X면 Yaw 0 / 90 / 180 / 270), 붙은 두 면이 열렸으면 `block-grass-corner-overhang`(Yaw 0에서 깎인 모서리가 (+X, +Y). (−X, +Y) / (−X, −Y) / (+X, −Y)면 Yaw 90 / 180 / 270). 해안선이 곧게 보이지 않게 해안 블록은 0 ~ 1.2 m 밖으로 밀고 배율 10 ~ 11.6, Yaw ±7°로 흩뜨렸다(윗면 높이는 같다). 가끔 그 아래에 낮은 턱(`KL_*`, `block-grass-overhang-low-large`)이 붙어 있다.
+  - 안쪽 칸: `block-grass-overhang-large`(2×2)를 배율 5 / 10 / 20으로 놓아 1 / 2 / 4칸씩 덮는다. 블록 이음선이 땅에 줄로 보이는 것은 킷 모양 그대로다.
+  - 해안선은 옛 육각 타일 영역을 흐려서 둥글게 만들고, 건물 / 나무 / 게임용 액터가 놓인 칸은 반드시 땅으로 남겼다. 칸을 더하거나 빼면 이웃 칸의 해안 조각도 위 규칙으로 바꾼다.
+- 물(`SkyIslands/Water`): 해자 / 호수 / 강의 육각 물 타일을 지우고 평평한 판 하나씩(엔진 `Cube` + `MI_Water`. `Kenny/platformer-kit/Materials`, 부모 `/Engine/BasicShapes/BasicShapeMaterial`)으로 바꿨다. 윗면은 예전 물 높이 그대로(해자 −2 m, 호수 −0.5 m, 강 −0.8 m)이고, 판이 물 칸보다 넓어서 둑 블록 아래로 들어가 있다. 판이 섬 가장자리 밖으로 나오면 보이므로 강은 해안 한 칸 앞에서 끝난다.
+- 길: 옛 길 타일 자리에 Kenney `stones`(충돌 없음)를 깔았다(`SkyIslands/PathStones`).
+- 언덕: KayKit 언덕(`hills_*`, `hill_single_*`) 75개를 Kenney 단으로 바꿨다(`SkyIslands/Plateaus`). 높이 1.2 m(바로 점프)이거나, 2.4 m에 1.2 m 발판(`PlateauStep_*`)이 붙어 있다. `*_trees`였던 자리는 위에 KayKit 나무를 놓았다.
+- 남은 KayKit 지형: 야영지 / 요새 안뜰의 `building_dirt`(흙 육각 바닥 6개)와 동굴 섬의 산(`mountain_*_grass_trees`, KayKit 풀색)은 그대로다.
+- 섬:
+  - 본섬(z 0): 마을, 호수(북), 서쪽 폐허, 야영지. 해안은 둥글게 들쭉날쭉하다(반지름 약 300 ~ 400 m). 원래 가장자리를 막던 산 고리(24번째 고리)와 숲 고리(23번째)는 지웠다.
+  - 그림자 요새 섬(남): 원래 (20, 0) 둘레 5칸(앞 야영지, 폐허 포함)을 X −50 m, Z +8 m 옮겼다.
+  - 동쪽 동굴 섬: 원래 (9, −18) 둘레 4칸을 Y +35 m, Z −6 m 옮겼다. 포탈 `OrcCave`, 도착 PlayerStart, 스포너 4개(`AISpawner_1 / 2 / 3 / 5`), 태그 없는 `PlayerStart_0`도 함께 옮겼다. 그래서 Play From Here 없이 Field를 PIE로 시작하면 동굴 섬에서 시작한다.
+  - 장식용 작은 섬 9개: 지운 가장자리 칸 몇 개를 바깥 / 위아래로 옮긴 것이다.
+- 섬 사이 길(아웃라이너 `SkyIslands/Paths`): 본섬 → 요새 `Step_Fort_00 ~ 07`(발판 8개, 한 칸 +0.89 m, 가장자리 간격 약 2.2 m, 출발점에 빨간 깃발), 본섬 → 동굴 `Step_Orc_00 ~ 06`(7개, 한 칸 약 −0.86 m, 간격 약 2.6 m, 초록 깃발). 가운데 발판 하나는 넓은 쉼터(나무 + 돌)다. 발판은 `block-grass-overhang-large`(배율 1.5 ~ 3.8, 두께 1.5 ~ 2.5 m)이고 아래에 뒤집은 산(`*_Rock`)이 붙어 있다. `Step_Orc_06`(윗면 −5.57 m)은 2026-11-09 해안선을 다시 그리면서 동굴 섬 해안이 마지막 발판에서 4.8 m 멀어져 더한 것이다.
+  - 점프 기준(DT_Movement `Player`): 끝까지 누르면 높이 약 1.6 m, 평지 수평 거리 약 4.5 m, 1 m 높은 곳에 내릴 때 약 3.7 m. 발판을 더할 때 오르막은 한 칸 1 m 이하, 가장자리 간격은 2.6 m 이하로 둔다.
+- 장식: `SkyIslands/Underside`(땅 블록 아래 뒤집은 `mountain_A / B / C`, Pitch 180, 라벨 `U_<섬>_<i>_<j>`. 해안 칸마다 작은 것, 그 안쪽 줄은 한 칸 걸러 큰 것, 더 안쪽은 50 m 간격으로 깊은 것이 있고 작은 섬은 가운데에 하나 더 있다. 해안을 바꾸면 그 칸의 것도 고친다), `SkyIslands/Floaters`(길 옆 떠다니는 Kenney 발판), `SkyIslands/Clouds`(섬 아래 50 ~ 90 m의 구름 바다와 먼 구름). 구름 메시(`cloud_big` / `cloud_small`)는 풀과 같은 규칙으로 충돌을 없앴다.
+- 떨어지면: WorldSettings KillZ가 엔진 기본값(−1048575)이라 섬 밖으로 떨어지면 끝없이 떨어진다. KillZ만 올리면 엔진 `AActor::FellOutOfWorld`가 캐릭터를 Destroy해서 조종할 Pawn이 없어진다. 낙하 처리(`APlayerCharacter::FellOutOfWorld` 재정의)를 만든 뒤에 KillZ를 정한다(2026-11-08 미구현).
+- AI는 NavMesh가 끊긴 섬 사이를 건너지 못한다(의도). 섬 배치를 바꾸면 Build → Build Paths 후 저장한다.
+
+### SkyIslands 맵 (Kenney 하늘섬, 2026-11-09)
+
+- `/Game/Maps/ElmKingdom/SkyIslands`: Field와 별개인 새 맵이다. 엔진 `Template_Default`를 복제해서 조명은 Field와 같고 템플릿의 `Floor`만 지웠다. 게임용 액터는 광장의 `PlayerStart`(-150, -150, 120) 하나뿐이다(NavMesh / 스포너 / 포탈 없음, KillZ 기본값이라 떨어지면 끝없이 떨어진다).
+- **섬 하나 = 크게 늘린 블록 하나**(2026-11-09 사용자 지시). 처음에는 4 m 블록을 격자로 이어 붙였는데 이음선이 줄로 보여 바꿨다. 언덕의 단도 단마다 블록 하나(두께 2 m, 바닥이 아래 단 속에 묻힌다)다. 땅을 고칠 때 블록을 이어 붙이지 않는다.
+  - 땅 블록은 `block-grass-overhang-large`(배율 1에서 한 변 208.2 cm, 피벗은 바닥 가운데)다. 소품 / 다리 / 징검다리는 캐릭터 기준 ×2 배율이다. +X 북, +Y 동.
+  - 크게 늘리면 가장자리 풀 테두리가 경사가 된다: 수평 폭 = 4.1 cm × xy 배율, 높이 = 12.5 cm × z 배율(trace로 잼). 중앙 섬(xy 44, z 18)은 가장자리 1.8 m가 2.25 m 내려가는 경사라, 다리 판자는 섬 위로 2.3 m 걸치고 징검다리 첫 돌은 풀 테두리 끝에서 1.0 ~ 1.2 m만 띄웠다. 풀 늘어짐 모양도 같이 커진다(중앙 섬은 한 물결이 수 m).
+  - 섬 밑면은 `SM_DirtBlock`을 2 ~ 3층 작아지게 쌓고(층마다 조금 돌림) 첫 층 아래에 흙 기둥(`*_Stal*`)을 매달았다. `SM_DirtBlock`(`platformer-kit/StaticMeshes`)은 `block-grass-large` 복제에 `MI_KenneyDirt`(`platformer-kit/Materials`, 부모 `colormap` MI, `DiffuseColorMapWeight` 0 + `DiffuseColor` 흙 색)를 입힌 것이다. 풀 블록을 아래로 쌓으면 이음마다 풀 테두리가 보여서 만들었다. 충돌은 원본처럼 `Use Complex Collision As Simple`이다.
+- 섬(크기 / 윗면 높이):
+  - 중앙: 91.6 m 정사각형, 0 m, 두께 18 m. 북동 계단 언덕(단 4개, +1 ~ +4 m, 꼭대기 큰 나무), 남서 대지(+1 / +2), 북서 둔덕(+1), 남동 야영지 상자, 가운데 광장과 네 방향 길(돌 깔림)은 평지.
+  - 북(29 × 31 m, 0, 숲, +1 둔덕): 다리 20 m. 남(27 × 30 m, 0, 짐 상자): 다리 16 m. 다리는 `platform` ×2 판자(가운데가 22 cm 처짐) + 양쪽 `fence-rope` 난간 + 양 끝 `flag`.
+  - 동(28 × 26 m, +3 m, 바위 / 침엽수, +4 단 위 상자): 징검다리 3개(+0.75 m씩, 간격 1.0 / 1.75 / 1.75 / 1.6 m). 서(26 × 26 m, −3 m, 버섯): 징검다리 4개(−0.6 m씩, 간격 1.2 / 1.6 m). Field의 점프 기준(오르막 1 m 이하, 간격 2.6 m 이하) 안이다. 작은 섬은 두께 10 m라 가장자리 경사가 약 0.55 m 폭, 1.25 m 높이다.
+- 아웃라이너 `SkyIslands/<Central|North|South|East|West>`(`<섬>_Ground` + `Tiers` / `Under` / `Props`), `SkyIslands/Bridges/<North|South>`, `SkyIslands/Stones/<East|West>`.
+- 배치는 생성기 `Saved/SkyIslandsGen/gen_skyislands.py`(gitignore 대상이라 만든 PC에만 있다)가 만든 JSON을 unreal-mcp로 읽어 놓았다. 섬 크기나 위치를 바꾸면 다리 길이 / 징검다리 간격 / 밑면 / 소품이 섬 크기에서 계산되므로 생성기를 고쳐 다시 놓는 편이 빠르다(액터 522개, 배치 약 15초. 맵에 액터가 많을수록 느려져서 타일 1,418개일 때는 액터당 0.45초였다).
 
 ### 메인 메뉴 레벨
 
