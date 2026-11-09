@@ -4,6 +4,7 @@
 #include "SaveSubsystem.h"
 #include "../Characters/PlayerCharacter.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -31,19 +32,8 @@ void USaveSubsystem::TravelToLevel(APlayerCharacter* Player, const TSoftObjectPt
 	if (mIsTraveling || !IsValid(Player) || Level.IsNull())
 		return;
 
-	mIsTraveling = true;
-
 	// E를 누른 순간(문을 나선 순간)의 상태를 적는다. 어두워지는 동안 생긴 변화는 문을 나간 뒤라서 적지 않는다.
 	WritePlayer(Player);
-
-	// URL "맵경로#태그"에서 # 뒤(Portal)를 엔진이 PlayerStart Tag로 쓴다.
-	// 새 레벨의 GameMode가 FindPlayerStart에서 이 Tag를 가진 PlayerStart를 먼저 찾는다.
-	FString URL = Level.GetLongPackageName();
-
-	if (!StartTag.IsNone())
-		URL += TEXT("#") + StartTag.ToString();
-
-	UE_LOG(LogTestDebug, Warning, TEXT("TravelToLevel : %s"), *URL);
 
 	// 어두워지는 동안 움직이거나 창을 열지 못하게 한다.
 	// 캐릭터 입력(이동, 공격)과 컨트롤러 입력(E, 인벤토리)은 따로라서 둘 다 끈다.
@@ -54,15 +44,7 @@ void USaveSubsystem::TravelToLevel(APlayerCharacter* Player, const TSoftObjectPt
 		PC->DisableInput(PC);
 	}
 
-	// 투명(0) → 검정(1). 5번째 인자 true = 소리도 같이 줄인다. 6번째 인자 true = 다 어두워진 뒤에도 검정을 유지한다.
-	// 유지하지 않으면 페이드가 끝나고 레벨이 열리기 전까지 한두 프레임 동안 화면이 번쩍 밝아질 수 있다.
-	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(Player, 0))
-		Camera->StartCameraFade(0.f, 1.f, FadeTime, FLinearColor::Black, true, true);
-
-	// 다 어두워지면 연다. URL은 Payload로 타이머에 실어 보낸다. (AssetSubsystem의 OnGameDataLoaded와 같은 방식)
-	FTimerHandle TimerHandle;
-	Player->GetWorldTimerManager().SetTimer(TimerHandle,
-		FTimerDelegate::CreateUObject(this, &USaveSubsystem::OpenLevelURL, URL), FadeTime, false);
+	FadeOutAndOpen(MakeLevelURL(Level, StartTag));
 }
 
 bool USaveSubsystem::SaveToDisk(APlayerCharacter* Player)
@@ -78,6 +60,60 @@ bool USaveSubsystem::SaveToDisk(APlayerCharacter* Player)
 
 	// 마지막 인자는 사용자 번호(콘솔에서 계정을 구분하는 용도). PC 싱글플레이는 0이다.
 	return UGameplayStatics::SaveGameToSlot(mSaveGame, SaveSlotName, 0);
+}
+
+bool USaveSubsystem::StartNewGame(const TSoftObjectPtr<UWorld>& Level, FName StartTag)
+{
+	// 메인 화면 버튼을 빠르게 두 번 눌러도 한 번만 연다.
+	if (mIsTraveling || Level.IsNull())
+		return false;
+
+	// 메모가 nullptr이면 새 레벨의 부품들이 각자 "새 게임"으로 초기화한다. (DT_Player 시작 레벨, 시작 아이템)
+	// 디스크의 세이브 파일은 지우지 않는다. 게임 안에서 "저장하기"를 눌러야 덮어쓴다.
+	mSaveGame = nullptr;
+
+	FadeOutAndOpen(MakeLevelURL(Level, StartTag));
+	return true;
+}
+
+void USaveSubsystem::WritePlayer(APlayerCharacter* Player)
+{
+	// 처음 적을 때만 만든다. UPROPERTY로 잡고 있어서 GameInstance가 살아 있는 동안 GC되지 않는다.
+	if (!mSaveGame)
+		mSaveGame = NewObject<UElmSaveGame>(this);
+
+	Player->WriteToSave(*mSaveGame);
+}
+
+FString USaveSubsystem::MakeLevelURL(const TSoftObjectPtr<UWorld>& Level, FName StartTag)
+{
+	// URL "맵경로#태그"에서 # 뒤(Portal)를 엔진이 PlayerStart Tag로 쓴다.
+	// 새 레벨의 GameMode가 FindPlayerStart에서 이 Tag를 가진 PlayerStart를 먼저 찾는다.
+	FString URL = Level.GetLongPackageName();
+
+	if (!StartTag.IsNone())
+		URL += TEXT("#") + StartTag.ToString();
+
+	return URL;
+}
+
+void USaveSubsystem::FadeOutAndOpen(const FString& URL)
+{
+	mIsTraveling = true;
+
+	UE_LOG(LogTestDebug, Warning, TEXT("TravelToLevel : %s"), *URL);
+
+	// 캐릭터가 없는 메인 화면에서도 부르므로 카메라와 타이머는 캐릭터 대신 GameInstance로 찾는다.
+	// 투명(0) → 검정(1). 5번째 인자 true = 소리도 같이 줄인다. 6번째 인자 true = 다 어두워진 뒤에도 검정을 유지한다.
+	// 유지하지 않으면 페이드가 끝나고 레벨이 열리기 전까지 한두 프레임 동안 화면이 번쩍 밝아질 수 있다.
+	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(GetGameInstance(), 0))
+		Camera->StartCameraFade(0.f, 1.f, FadeTime, FLinearColor::Black, true, true);
+
+	// 다 어두워지면 연다. URL은 Payload로 타이머에 실어 보낸다. (AssetSubsystem의 OnGameDataLoaded와 같은 방식)
+	// GameInstance의 타이머는 월드 타이머와 같은 것이라(UWorld::GetTimerManager) 일시정지 중에는 돌지 않는다.
+	FTimerHandle TimerHandle;
+	GetGameInstance()->GetTimerManager().SetTimer(TimerHandle,
+		FTimerDelegate::CreateUObject(this, &USaveSubsystem::OpenLevelURL, URL), FadeTime, false);
 }
 
 void USaveSubsystem::OpenLevelURL(FString URL)
@@ -113,13 +149,4 @@ void USaveSubsystem::FadeIn()
 	// 줄였던 소리 볼륨은 레벨을 옮겨도 그대로 남아 있다. 5번째 인자가 true여야 밝아지면서 소리도 원래 크기로 돌아온다.
 	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(GetGameInstance(), 0))
 		Camera->StartCameraFade(1.f, 0.f, FadeTime, FLinearColor::Black, true, false);
-}
-
-void USaveSubsystem::WritePlayer(APlayerCharacter* Player)
-{
-	// 처음 적을 때만 만든다. UPROPERTY로 잡고 있어서 GameInstance가 살아 있는 동안 GC되지 않는다.
-	if (!mSaveGame)
-		mSaveGame = NewObject<UElmSaveGame>(this);
-
-	Player->WriteToSave(*mSaveGame);
 }

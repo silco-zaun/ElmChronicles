@@ -1,7 +1,7 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "ElmGameModeBase.h"
+#include "ElmGameMode.h"
 #include "../AI/ElmAIController.h"
 #include "../Characters/PlayerCharacter.h"
 #include "../Player/ElmPlayerController.h"
@@ -13,7 +13,7 @@
 #include "EngineUtils.h"
 #include "TimerManager.h"
 
-AElmGameModeBase::AElmGameModeBase()
+AElmGameMode::AElmGameMode()
 {
 	DefaultPawnClass = APlayerCharacter::StaticClass();
 	PlayerControllerClass = AElmPlayerController::StaticClass();
@@ -26,7 +26,7 @@ AElmGameModeBase::AElmGameModeBase()
 	mRecallStartTag = TEXT("Room");
 }
 
-AActor* AElmGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
+AActor* AElmGameMode::ChoosePlayerStart_Implementation(AController* Player)
 {
 	// 포탈 태그(URL의 #태그)로 찾는 일은 이 함수보다 먼저 FindPlayerStart가 끝냈다.
 	// 여기까지 왔다는 것은 태그 없이 들어왔거나, 그 태그를 가진 PlayerStart가 없다는 뜻이다.
@@ -50,17 +50,17 @@ AActor* AElmGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
 	return Super::ChoosePlayerStart_Implementation(Player);
 }
 
-void AElmGameModeBase::PlayerKilled(APlayerCharacter* Player)
+void AElmGameMode::PlayerKilled(APlayerCharacter* Player)
 {
 	// 쓰러지는 모습을 보여 준 뒤에 옮긴다.
 	// 타이머가 불릴 때 캐릭터가 이미 사라졌을 수도 있어서 약한 참조(TWeakObjectPtr)로 실어 보낸다.
 	FTimerHandle TimerHandle;
 	GetWorldTimerManager().SetTimer(TimerHandle,
-		FTimerDelegate::CreateUObject(this, &AElmGameModeBase::RespawnPlayer, TWeakObjectPtr<APlayerCharacter>(Player)),
+		FTimerDelegate::CreateUObject(this, &AElmGameMode::RespawnPlayer, TWeakObjectPtr<APlayerCharacter>(Player)),
 		RespawnDelay, false);
 }
 
-void AElmGameModeBase::RespawnPlayer(TWeakObjectPtr<APlayerCharacter> Player)
+void AElmGameMode::RespawnPlayer(TWeakObjectPtr<APlayerCharacter> Player)
 {
 	if (!Player.IsValid())
 		return;
@@ -71,7 +71,7 @@ void AElmGameModeBase::RespawnPlayer(TWeakObjectPtr<APlayerCharacter> Player)
 		SaveSubsystem->TravelToLevel(Player.Get(), mRespawnLevel, mRespawnStartTag);
 }
 
-bool AElmGameModeBase::IsInCombat(const APlayerCharacter* Player) const
+bool AElmGameMode::IsInCombat(const APlayerCharacter* Player) const
 {
 	if (!IsValid(Player))
 		return false;
@@ -91,7 +91,7 @@ bool AElmGameModeBase::IsInCombat(const APlayerCharacter* Player) const
 	return false;
 }
 
-void AElmGameModeBase::Recall(APlayerCharacter* Player)
+void AElmGameMode::Recall(APlayerCharacter* Player)
 {
 	// 규칙을 지키는 곳은 GameMode다. 부르는 쪽(메뉴)이 확인을 빠뜨려도 막히도록 여기서 한 번 더 본다.
 	if (!IsValid(Player) || Player->IsDead() || IsInCombat(Player))

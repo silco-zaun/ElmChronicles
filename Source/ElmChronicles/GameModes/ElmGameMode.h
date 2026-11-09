@@ -4,7 +4,7 @@
 
 #include "../GameInfo.h"
 #include "GameFramework/GameModeBase.h"
-#include "ElmGameModeBase.generated.h"
+#include "ElmGameMode.generated.h"
 
 class APlayerCharacter;
 
@@ -12,12 +12,12 @@ class APlayerCharacter;
  *
  */
 UCLASS()
-class ELMCHRONICLES_API AElmGameModeBase : public AGameModeBase
+class ELMCHRONICLES_API AElmGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
 public:
-	AElmGameModeBase();
+	AElmGameMode();
 
 protected:
 	// 죽으면 다시 시작하는 맵(병원)과 그 맵에서 설 PlayerStart의 Player Start Tag.

@@ -13,7 +13,7 @@ class APlayerCharacter;
 // 레벨 이동(OpenLevel)은 PlayerState / 캐릭터를 모두 버리고 새로 만들지만, GameInstance와 그 서브시스템은 남는다.
 // 이동 직전에 지금 상태를 메모에 적고, 새 레벨의 플레이어가 초기화할 때 메모를 읽는다.
 // 나중에 디스크 저장도 이 메모(UElmSaveGame)를 SaveGameToSlot에 그대로 넘기면 된다.
-// 화면 전환도 맡는다. 떠날 때 어둡게 하고(TravelToLevel), 도착하면 다시 밝힌다(OnPostLoadMap → FadeIn).
+// 화면 전환도 맡는다. 떠날 때 어둡게 하고(FadeOutAndOpen), 도착하면 다시 밝힌다(OnPostLoadMap → FadeIn).
 // 카메라는 레벨과 함께 사라지지만 서브시스템은 두 레벨 모두에 살아 있어서 출발과 도착을 이어 줄 수 있다.
 UCLASS()
 class ELMCHRONICLES_API USaveSubsystem : public UGameInstanceSubsystem
@@ -46,9 +46,17 @@ public:
 	// 지금 플레이어 상태를 메모에 적고, 메모를 디스크(SaveSlotName)에 쓴다. 메뉴 "저장하기"가 부른다.
 	// 이동 중이거나 플레이어가 죽어 있으면 쓰지 않고 false를 돌려준다.
 	bool SaveToDisk(APlayerCharacter* Player);
+	// 메인 화면 "새 게임".
+	// 메모를 비우고(nullptr = 새 게임) 화면을 어둡게 한 뒤 Level을 연다.
+	// 이미 이동 중이면 무시하고 false를 돌려준다.
+	bool StartNewGame(const TSoftObjectPtr<UWorld>& Level, FName StartTag);
 
 private:
 	void WritePlayer(APlayerCharacter* Player);
+	// "맵경로#태그"를 만든다. # 뒤는 도착 레벨에서 PlayerStart Tag로 쓰인다.
+	static FString MakeLevelURL(const TSoftObjectPtr<UWorld>& Level, FName StartTag);
+	// 화면을 어둡게 하고, 다 어두워지면 URL을 연다. 포탈 / 귀환 / 사망 / 새 게임이 같이 쓴다.
+	void FadeOutAndOpen(const FString& URL);
 	// 다 어두워지면 타이머가 부른다.
 	void OpenLevelURL(FString URL);
 	// 새 레벨이 다 열리면 엔진이 부른다. (FCoreUObjectDelegates::PostLoadMapWithWorld)

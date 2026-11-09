@@ -3,7 +3,7 @@
 
 #include "MenuWidget.h"
 #include "../../Characters/PlayerCharacter.h"
-#include "../../GameModes/ElmGameModeBase.h"
+#include "../../GameModes/ElmGameMode.h"
 #include "../../Player/ElmPlayerController.h"
 #include "../../Subsystem/SaveSubsystem.h"
 
@@ -30,7 +30,7 @@ void UMenuWidget::Refresh()
 	
 	// 메뉴가 열려 있는 동안은 게임이 멈춰 있으므로, 열 때 한 번 정하면 닫을 때까지 맞다.
 	const APlayerCharacter* Player = GetOwningPlayerPawn<APlayerCharacter>();
-	const AElmGameModeBase* GameMode = GetWorld()->GetAuthGameMode<AElmGameModeBase>();
+	const AElmGameMode* GameMode = GetWorld()->GetAuthGameMode<AElmGameMode>();
 
 	bool IsInCombat = GameMode && IsValid(Player) && !Player->IsDead() && !GameMode->IsInCombat(Player);
 	mRecallButton->SetIsEnabled(IsInCombat);
@@ -51,7 +51,7 @@ void UMenuWidget::OnResumeClicked()
 void UMenuWidget::OnRecallClicked()
 {
 	AElmPlayerController* PlayerController = GetOwningPlayer<AElmPlayerController>();
-	AElmGameModeBase* GameMode = GetWorld()->GetAuthGameMode<AElmGameModeBase>();
+	AElmGameMode* GameMode = GetWorld()->GetAuthGameMode<AElmGameMode>();
 
 	if (!IsValid(PlayerController) || !GameMode)
 		return;

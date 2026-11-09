@@ -10,7 +10,7 @@
 #include "../Data/Tables/LevelStatTableRow.h"
 #include "../Data/Tables/MovementTableRow.h"
 #include "../Data/Tables/PlayerCharacterTableRow.h"
-#include "../GameModes/ElmGameModeBase.h"
+#include "../GameModes/ElmGameMode.h"
 #include "../Input/DefaultInput.h"
 #include "../Player/DialogueComponent.h"
 #include "../Player/ElmPlayerController.h"
@@ -430,7 +430,7 @@ void APlayerCharacter::OnKilledBy(AActor* Killer)
 	UE_LOG(LogTestDebug, Warning, TEXT("Player Death - Killer : %s"), *GetNameSafe(Killer));
 
 	// 어디서 언제 다시 시작할지는 게임 규칙이라 GameMode가 정한다. (GameMode는 서버에만 있어서 클라이언트에서는 null이다)
-	if (AElmGameModeBase* GameMode = GetWorld()->GetAuthGameMode<AElmGameModeBase>())
+	if (AElmGameMode* GameMode = GetWorld()->GetAuthGameMode<AElmGameMode>())
 		GameMode->PlayerKilled(this);
 }
 

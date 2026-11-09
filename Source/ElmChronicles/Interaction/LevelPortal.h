@@ -28,7 +28,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Portal") TSoftObjectPtr<UWorld> mTargetLevel;
 
 	// 도착 레벨에서 설 PlayerStart의 Player Start Tag.
-	// 비우거나 못 찾으면 태그 없는 PlayerStart에 선다(AElmGameModeBase::ChoosePlayerStart).
+	// 비우거나 못 찾으면 태그 없는 PlayerStart에 선다(AElmGameMode::ChoosePlayerStart).
 	UPROPERTY(EditAnywhere, Category = "Portal") FName mTargetStartTag;
 
 	// 안내 문구. 예: "상점 들어가기" → 화면에는 "[F] 상점 들어가기"

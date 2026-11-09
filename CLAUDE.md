@@ -111,7 +111,7 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 
 ### 레벨 이동 / 메모(SaveSubsystem)
 
-- GameMode는 `DefaultEngine.ini`의 `GlobalDefaultGameMode`(`AElmGameModeBase`)라서 맵마다 지정하지 않는다. `ChoosePlayerStart`는 `APlayerStartPIE`("Play From Here") → 태그 없는 첫 PlayerStart → 엔진 기본(무작위) 순으로 고른다.
+- GameMode는 `DefaultEngine.ini`의 `GlobalDefaultGameMode`(`AElmGameMode`)라서 맵마다 지정하지 않는다. `ChoosePlayerStart`는 `APlayerStartPIE`("Play From Here") → 태그 없는 첫 PlayerStart → 엔진 기본(무작위) 순으로 고른다.
 - `OpenLevel`은 GameInstance와 그 서브시스템 말고는 PlayerState(ASC), 캐릭터(가방)까지 모두 새로 만든다. 그래서 `USaveSubsystem`(GameInstanceSubsystem)이 "메모" `UElmSaveGame`(`Save/ElmSaveGame.h`)를 들고 있고, nullptr이면 새 게임이다.
   - 쓰기는 한 곳이다: `TravelToLevel` → `APlayerCharacter::WriteToSave`. 읽기는 부품마다 자기 초기화 때 한다(`UInventoryComponent::InitInventory`, `APlayerCharacter::InitAttributes`).
   - 이어 갈 상태를 늘리려면 `UElmSaveGame`에 필드를 추가하고 → `WriteToSave`에서 적고 → 그 부품의 초기화(`CallOrRegisterDataLoaded`를 거치는 함수)에서 읽는다.
@@ -120,7 +120,7 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
   - 지금 연결 이름: `OrcCave`, `Shop`, `Tavern`, `Hospital`, `HeroHouse`(KyleHouse), `Castle`(Palace). 실내 맵의 포탈은 `Exit_ToTown` 표식 앞 (x, 100, 105), Box Extent 100이다.
   - 페이드 아웃 / 인과 중복 이동 방지(`mIsTraveling` + 입력 끄기)도 `USaveSubsystem`이 맡는다. 도착은 `PostLoadMapWithWorld`로 알고, 로딩 직후 큰 DeltaTime 때문에 검은 화면을 0.5초 유지한 뒤 밝힌다. 카메라 페이드라 HUD(UMG)는 가려지지 않는다.
   - PIE 로그의 `UEDPIE_0_` 접두사 경로는 정상이다.
-- 사망: `APlayerCharacter::OnKilledBy` → `AElmGameModeBase::PlayerKilled` → 2초 뒤 `TravelToLevel(Hospital, "Respawn")`. 메모의 HP가 0이면 죽어서 온 것으로 보고 `InitAttributes`가 HP / MP를 가득 찬 채로 둔다(부활 코드는 따로 없다). 사망 페널티는 없다.
+- 사망: `APlayerCharacter::OnKilledBy` → `AElmGameMode::PlayerKilled` → 2초 뒤 `TravelToLevel(Hospital, "Respawn")`. 메모의 HP가 0이면 죽어서 온 것으로 보고 `InitAttributes`가 HP / MP를 가득 찬 채로 둔다(부활 코드는 따로 없다). 사망 페널티는 없다.
 - 디스크 저장: `USaveSubsystem::SaveToDisk` = `WritePlayer` + `SaveGameToSlot(mSaveGame, "ElmSave", 0)`(`Saved/SaveGames/ElmSave.sav`). 메뉴 "저장하기"만 부른다. 이동 중이거나 죽었으면 쓰지 않는다. 불러오기는 아직 없다(메모에 맵 / 위치가 없다).
 - 결정 이유와 함정 기록은 끝나서 지운 진행 문서에 있다: `git show d3b7deb:Docs/LevelTravel_Progress.md`.
 
@@ -149,17 +149,31 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 
 ### SkyIslands 맵 (Kenney 하늘섬, 2026-11-09)
 
-- `/Game/Maps/ElmKingdom/SkyIslands`: Field와 별개인 새 맵이다. 엔진 `Template_Default`를 복제해서 조명은 Field와 같고 템플릿의 `Floor`만 지웠다. 게임용 액터는 광장의 `PlayerStart`(-150, -150, 120) 하나뿐이다(NavMesh / 스포너 / 포탈 없음, KillZ 기본값이라 떨어지면 끝없이 떨어진다).
+- `/Game/Maps/ElmKingdom/SkyIslands`: Field와 별개인 새 맵이다. 엔진 `Template_Default`를 복제해서 조명은 Field와 같고 템플릿의 `Floor`만 지웠다. 게임용 액터는 남문 안쪽 큰길의 `PlayerStart`(-6600, 0, 120, 성을 본다) 하나뿐이다(NavMesh / 스포너 / 포탈 / 보스 없음, KillZ 기본값이라 떨어지면 끝없이 떨어진다).
+- **아트 규칙(2026-11-09 사용자 지시): 건축물은 KayKit만, 지형지물(땅 / 나무 / 바위 / 풀 / 길 돌)은 Kenney만 쓴다.** 건물 옆 소품(통 / 상자 / 깃발 / 무기대 / 과녁 / 목재 / 수레)은 건물과 맞춰 KayKit(×6, 깃발 ×16)이고, 남쪽 섬의 짐 상자는 Kenney다.
+- **지형은 블록만 깔끔하게 깐다(2026-11-09 사용자 지시).** 섬 밑면에 흙 블록을 쌓거나 흙 기둥을 매다는 장식을 넣지 않는다. v3에서 섬 밑면 / 징검다리 밑에 `SM_DirtBlock` 98개를 붙였다가 사용자가 지웠다. 그때 만든 `SM_DirtBlock` / `MI_KenneyDirt`(`platformer-kit/StaticMeshes`, `Materials`)는 지금 아무도 참조하지 않는다.
 - **섬 하나 = 크게 늘린 블록 하나**(2026-11-09 사용자 지시). 처음에는 4 m 블록을 격자로 이어 붙였는데 이음선이 줄로 보여 바꿨다. 언덕의 단도 단마다 블록 하나(두께 2 m, 바닥이 아래 단 속에 묻힌다)다. 땅을 고칠 때 블록을 이어 붙이지 않는다.
   - 땅 블록은 `block-grass-overhang-large`(배율 1에서 한 변 208.2 cm, 피벗은 바닥 가운데)다. 소품 / 다리 / 징검다리는 캐릭터 기준 ×2 배율이다. +X 북, +Y 동.
-  - 크게 늘리면 가장자리 풀 테두리가 경사가 된다: 수평 폭 = 4.1 cm × xy 배율, 높이 = 12.5 cm × z 배율(trace로 잼). 중앙 섬(xy 44, z 18)은 가장자리 1.8 m가 2.25 m 내려가는 경사라, 다리 판자는 섬 위로 2.3 m 걸치고 징검다리 첫 돌은 풀 테두리 끝에서 1.0 ~ 1.2 m만 띄웠다. 풀 늘어짐 모양도 같이 커진다(중앙 섬은 한 물결이 수 m).
-  - 섬 밑면은 `SM_DirtBlock`을 2 ~ 3층 작아지게 쌓고(층마다 조금 돌림) 첫 층 아래에 흙 기둥(`*_Stal*`)을 매달았다. `SM_DirtBlock`(`platformer-kit/StaticMeshes`)은 `block-grass-large` 복제에 `MI_KenneyDirt`(`platformer-kit/Materials`, 부모 `colormap` MI, `DiffuseColorMapWeight` 0 + `DiffuseColor` 흙 색)를 입힌 것이다. 풀 블록을 아래로 쌓으면 이음마다 풀 테두리가 보여서 만들었다. 충돌은 원본처럼 `Use Complex Collision As Simple`이다.
+  - 크게 늘리면 가장자리 풀 테두리가 경사가 된다: 수평 폭 = 4.1 cm × xy 배율, 높이 = 12.5 cm × z 배율(trace로 잼). 가운데 섬(xy 105.7, z 18)은 가장자리 4.33 m가 2.25 m 내려가는 경사(27°, 걸어 다닐 수 있다)라, 다리 판자는 섬 위로 4.83 m 걸친다. 징검다리 첫 돌은 돌 바닥(윗면 − 1.2 m)이 경사면보다 20 cm 위에 오는 가장 가까운 자리에 둔다(생성기 `first_gap`. 동쪽 +0.5 m 돌은 경사 위에 걸쳐 평지 끝에서 1.73 m, 서쪽 −0.8 m 돌은 4.24 m). 동쪽 섬 경사(2.36 m 폭, 1.75 m 높이, 48°)는 걸을 수 없으므로 마지막 돌은 풀 테두리 끝에서 0.3 m만 띄웠다(평지까지 2.66 m, +0.5 m). 경사 위에 길 돌 같은 평평한 소품을 두면 떠 보인다. 풀 늘어짐 모양도 같이 커진다(가운데 섬은 한 물결이 수 m).
+- KayKit 건물은 Field와 같은 ×10(성 ×13)이다. **정면 = 로컬 +Y**(Field 문 포탈 위치로 확인)라서 바라볼 방향이 θ면 Yaw = θ − 90이다. 성문에는 문짝을 달지 않았다(열린 성문).
+- **성벽은 Field와 같은 육각형이다**(2026-11-09 사용자 지시. 네모 → 원형("어색하다") → 육각형). 생성기 `hex_wall`이 Field `ElmField/Walls`에서 읽은 규칙을 그대로 쓴다(생성기가 Field 마을 성벽 44개를 다시 만들어 맞는지 스스로 검사한다, `field_selftest`):
+  - 모든 조각 ×10, 늘이거나 줄이지 않는다. 꼭짓점은 중심에서 n × 20 m(한 변 n칸), 각도 θ0 + 60k.
+  - 꼭짓점: `wall_corner_A_inside`(Yaw = 꼭짓점 각 − 60). 성문 꼭짓점은 `wall_corner_A_gate`(같은 Yaw) + 양옆 변 쪽 10 m에 탑(`tower_A` + `_top`, 같은 Yaw).
+  - 변: 두 꼭짓점 사이를 n등분한 자리마다 `wall_straight`(Yaw = 변 바깥 법선 + 90). 변 가운데 성문은 같은 자리 / Yaw의 `wall_straight_gate`(n이 짝수여야 변 가운데에 칸이 있다).
+  - 이 방향이면 `wall_straight`의 갈색 나무 부분(로컬 −Y)이 바깥을 본다(Field와 같다).
+  - 원형(v5)은 직선 벽을 여러 각도로 꺾어 이었고, 네모(v4)는 모퉁이에서 벽을 겹쳤다. 둘 다 KayKit 모퉁이 조각을 쓰지 않아 어색해 보였다.
 - 섬(크기 / 윗면 높이):
-  - 중앙: 91.6 m 정사각형, 0 m, 두께 18 m. 북동 계단 언덕(단 4개, +1 ~ +4 m, 꼭대기 큰 나무), 남서 대지(+1 / +2), 북서 둔덕(+1), 남동 야영지 상자, 가운데 광장과 네 방향 길(돌 깔림)은 평지.
+  - 가운데(성과 마을): 220 m 정사각형, 0 m, 두께 18 m. **성벽이 성과 마을을 함께 둘러싼다**(2026-11-09 사용자 지시). 육각 성벽은 Field와 같은 방향(꼭짓점이 북 / 남)으로 한 변 4칸(꼭짓점 80 m, 변심 69.3 m)이다. 북 / 남 꼭짓점이 탑 낀 모퉁이 성문(다리 쪽), 동 / 서 변 가운데가 성문(징검다리 쪽)이고, 성문 밖에서 섬 끝까지 길 돌이 깔려 있다.
+    - 성벽 안: 한가운데에 파란 성(`building_castle_blue` ×15, 정면 남쪽), 성 둘레 길(반지름 32 m), 성 앞 광장(우물, 깃발), 성문 넷으로 가는 큰길. 마을 24채: 큰길가 16채(주점 / 시장 / 제재소 / 병영 / 활터 / 교회 / 집)는 길을 보고, 큰길 사이 안쪽 8채(45° 방향 반지름 52 m에 대장간 포함 4채, 육각 모서리 방향 반지름 56 m에 4채. 더 밖은 모퉁이 성벽 조각이 차지한다)는 성을 본다. 큰길 사이 성 가까이는 정원(나무 / 풀)이다. 마을은 성벽 안쪽 면에서 1.8 m 이상 안에 있다(생성기 `outside_walls`가 육각형 기준으로 검사).
+    - 성벽 밖 네 모서리: 북동 계단 언덕(단 4개, +1 ~ +4 m, 꼭대기 큰 나무), 북서 대지(+1 / +2, 위에 풍차), 남서 / 남동 숲. 언덕 / 대지는 성벽에서 10 m 이상 밖이다(`tiers_vs_walls` 검사).
   - 북(29 × 31 m, 0, 숲, +1 둔덕): 다리 20 m. 남(27 × 30 m, 0, 짐 상자): 다리 16 m. 다리는 `platform` ×2 판자(가운데가 22 cm 처짐) + 양쪽 `fence-rope` 난간 + 양 끝 `flag`.
-  - 동(28 × 26 m, +3 m, 바위 / 침엽수, +4 단 위 상자): 징검다리 3개(+0.75 m씩, 간격 1.0 / 1.75 / 1.75 / 1.6 m). 서(26 × 26 m, −3 m, 버섯): 징검다리 4개(−0.6 m씩, 간격 1.2 / 1.6 m). Field의 점프 기준(오르막 1 m 이하, 간격 2.6 m 이하) 안이다. 작은 섬은 두께 10 m라 가장자리 경사가 약 0.55 m 폭, 1.25 m 높이다.
-- 아웃라이너 `SkyIslands/<Central|North|South|East|West>`(`<섬>_Ground` + `Tiers` / `Under` / `Props`), `SkyIslands/Bridges/<North|South>`, `SkyIslands/Stones/<East|West>`.
-- 배치는 생성기 `Saved/SkyIslandsGen/gen_skyislands.py`(gitignore 대상이라 만든 PC에만 있다)가 만든 JSON을 unreal-mcp로 읽어 놓았다. 섬 크기나 위치를 바꾸면 다리 길이 / 징검다리 간격 / 밑면 / 소품이 섬 크기에서 계산되므로 생성기를 고쳐 다시 놓는 편이 빠르다(액터 522개, 배치 약 15초. 맵에 액터가 많을수록 느려져서 타일 1,418개일 때는 액터당 0.45초였다).
+  - 동 = **최종 보스 성**(110 × 120 m, **+10 m**, 두께 14 m): 육각 성벽(한 변 2칸 = 꼭짓점 40 m, 꼭짓점이 ±Y, 중심이 섬 가운데보다 2 m 뒤(+Y))이 빨간 성(`building_castle_red` ×13, 정면 −Y, 성벽 중심보다 4 m 뒤)을 둘러싼다. 성문은 −Y 꼭짓점(징검다리 쪽)의 모퉁이 성문 + 양옆 `tower_A_red`다. 성문과 성 사이(약 25 m 깊이)는 비워 둔 전투 마당이고, 성벽 밖은 침엽수 / 바위다. 징검다리 11개(+0.5 m에서 0.9 m씩 올라 9.5 m, 섬까지 +0.5 m, 간격 1.4 ~ 1.5 m, 6번째는 깃발 꽂힌 넓은 쉼터 돌).
+  - 서 = **중간 보스 던전**(52 × 52 m, **−8 m**, 두께 12 m): 먼 쪽(−Y)에 절벽 단 2개(+3 / +6 m, 두께 3.5 m)를 두고 그 앞에 광산(`building_mine_blue` ×12, 입구가 +Y = 징검다리 쪽, 뒤쪽이 절벽에 묻힘), 입구 앞이 전투 마당이다. 왼쪽 앞에 폐허(`building_destroyed`), 큰 바위 / 버섯. 징검다리 9개(−0.8 m씩, 간격 1.5 m, 5번째 넓은 쉼터 돌).
+  - Field의 점프 기준(오르막 1 m 이하, 간격 2.6 m 이하) 안이다(생성기 보고서의 `stones_E` / `stones_W`). 작은 섬은 두께 10 m라 가장자리 경사가 약 0.55 m 폭, 1.25 m 높이다.
+- 아웃라이너 `SkyIslands/<Central|North|South|East|West>`(`<섬>_Ground` + `Tiers` / `Props`), 가운데 섬은 `Castle` / `Walls` / `Roads` / `Village`(+ `Props`), 동쪽 `Fortress`, 서쪽 `Dungeon`. `SkyIslands/Bridges/<North|South>`, `SkyIslands/Stones/<East|West>`.
+- 처음 맵에 놓은 KayKit 메시 16개(풍차 3부품, 활터, 제재소 3부품, `tower_B_blue`(+top), 투석기 탑 3부품, `crate_B_big`, `resource_stone`, `pallet`, `flag_red`)는 충돌 규칙대로 `Use Complex Collision As Simple`로 바꿨다. `flag_red`는 Field에서도 쓰므로 Field NavMesh를 다시 구워야 한다(아직 안 함).
+- 배치는 생성기 `Saved/SkyIslandsGen/gen_skyislands.py`(v6. 이전 판 `_v2.py` ~ `_v5.py`. gitignore 대상이라 만든 PC에만 있다)가 만든 JSON을 unreal-mcp로 읽어 놓았다. 판을 바꿀 때는 이전 판 결과와 비교해서 바뀐 액터만 지우고 놓는다(v5 → v6은 1,061개 중 376개를 그대로 두고 685개 삭제, 620개 추가). 생성기가 건물 / 성벽 / 길 / 소품 바닥 다각형의 겹침, 성 둘레 길 침범, 성벽 밖으로 나감, 언덕과 성벽 거리, 섬 가장자리, 단 받침, 첫 / 마지막 징검다리 거리를 검사해 보고한다. 난수는 구역(섬 / 징검다리 / 다리 / 섬별 나무·풀)마다 따로라서 한 구역을 고쳐도 다른 구역 배치는 그대로다. 섬 크기나 위치를 바꾸면 다리 길이 / 징검다리 간격 / 소품이 섬 크기에서 계산되므로 생성기를 고쳐 다시 놓는 편이 빠르다(액터 996개. `add_to_scene_from_asset` + `set_actor_folder`가 액터당 약 0.5초, `remove_from_scene`은 약 0.3초라서 한 번의 스크립트 호출에 110개 묶음 2 ~ 3개씩 놓았다).
+  - 사용자가 맵을 손본 뒤 다시 놓을 때는 먼저 맵의 액터 라벨 / 트랜스폼을 생성기 결과와 비교해서(`AssetTools.write_file`로 `level_state.json`에 받아 비교) 사용자 수정이 지워지지 않는지 확인한다.
 
 ### 메인 메뉴 레벨
 
@@ -168,7 +182,7 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 액터를 수백 개 한꺼번에 만든 직후의 뷰포트 캡처는 하얗게 과노출되어 보였고, 맵을 다시 열자 Field와 같은 노출로 돌아왔다(2026-11-06). 조명 값이 아니라 갱신 지연이었다.
 - 표시용 주인공은 게임 캐릭터가 아니라 `Kyle`(SkeletalMeshActor: Knight 메시 + `Rig_Medium_GeneralIdle_A` 단일 노드 재생)이다. 칼은 그 안의 `Sword` 컴포넌트를 Parent Socket `handslot_r`에 붙인다(게임과 같은 소켓).
 - 카메라는 `MenuCamera`(CameraActor, FOV 60, Constrain Aspect Ratio 끔)다. **Auto Activate for Player = Player 0**이라 코드 없이 뷰 타깃이 된다(엔진 `APlayerController::AutoManageActiveCameraTarget`이 Pawn보다 먼저 이 카메라를 고른다).
-- 아직 GameMode Override가 없어서 PIE에서는 게임용 `AElmGameModeBase`가 돌아 HP / MP HUD가 뜨고, 게임 캐릭터는 카메라 뒤 `PlayerStart`(-11200, 0)에 생긴다.
+- 아직 GameMode Override가 없어서 PIE에서는 게임용 `AElmGameMode`가 돌아 HP / MP HUD가 뜨고, 게임 캐릭터는 카메라 뒤 `PlayerStart`(-11200, 0)에 생긴다.
 
 ### 입력 / 상호작용 / UI
 
@@ -176,7 +190,7 @@ AElmCharacterBase (Abstract)  팀, 장비 메시, DT 외형 적용(InitAsset), �
 - 상호작용: `IInteractable`(C++ 전용 인터페이스)을 구현하고 해당 컴포넌트가 `Interaction` 채널에 Overlap으로 응답하면 된다. `UInteractionComponent`(`Player/`, `AElmPlayerController`에 붙음)가 0.1초마다 구 Overlap으로 가장 가까운 대상을 찾아 HUD에 `[F] ...` 문구를 띄운다. 키 글자는 `UElmInputConfig::FindMappedKeyText`가 지금 켜진 IMC에서 물어 온다. 다른 기능이 상호작용을 막을 때는 `SetBlocked(true / false)`를 부른다(상호작용 컴포넌트는 누가 막는지 모른다).
 - 플레이어 컨트롤러에 기능을 더할 때는 `Player/`의 ActorComponent로 만들어 컨트롤러에 붙이고, 컨트롤러에는 생성과 키 바인딩만 둔다(2026-10-30 상호작용 / 대화를 이렇게 뺐다). 컴포넌트 `BeginPlay`는 컨트롤러 `BeginPlay`의 `Super` 안에서 불려 아직 HUD가 없다.
 - HUD: `AElmPlayerController`가 `WBP_PlayerHUD`(`UPlayerHUDWidget`)를 만든다. C++ 위젯 변수는 `meta = (BindWidget)`이며 WBP의 위젯 이름과 같아야 한다. 상태바 같은 위젯은 `GetOwningPlayerState()`의 ASC Attribute 델리게이트를 구독해서 갱신한다. 창을 열고 닫을 때 입력 모드/커서는 `RefreshInputMode`가 맞춘다.
-- 메뉴(B, `IA_Menu`): `AElmPlayerController::SetMenuOpen`이 `WBP_PlayerHUD`의 자식 `mMenuWidget`(`UMenuWidget` / `WBP_Menu`)을 켜고 `SetPause`로 게임을 멈춘다. 버튼은 일을 맡은 곳에 부탁만 한다: 귀환 → `AElmGameModeBase::Recall`(KyleHouse `Room`), 저장 → `USaveSubsystem::SaveToDisk`, 종료 → `QuitGame`(확인 상자). 귀환 / 저장은 살아 있고 전투 중이 아닐 때만 켠다(`AElmGameModeBase::IsInCombat` = 살아 있는 AI 중 Blackboard `Target`이 이 플레이어인 것이 있음).
+- 메뉴(B, `IA_Menu`): `AElmPlayerController::SetMenuOpen`이 `WBP_PlayerHUD`의 자식 `mMenuWidget`(`UMenuWidget` / `WBP_Menu`)을 켜고 `SetPause`로 게임을 멈춘다. 버튼은 일을 맡은 곳에 부탁만 한다: 귀환 → `AElmGameMode::Recall`(KyleHouse `Room`), 저장 → `USaveSubsystem::SaveToDisk`, 종료 → `QuitGame`(확인 상자). 귀환 / 저장은 살아 있고 전투 중이 아닐 때만 켠다(`AElmGameMode::IsInCombat` = 살아 있는 AI 중 Blackboard `Target`이 이 플레이어인 것이 있음).
   - 일시정지 중에는 **Trigger when Paused**를 켠 IA만 발동한다. `IA_Menu`만 켜 두어서 메뉴가 열린 동안 이동 / 공격 / I / F가 막힌다. 입력 모드는 `FInputModeGameAndUI`다(UIOnly면 B가 컨트롤러에 오지 않아 메뉴를 닫을 수 없다).
   - 일시정지 중에는 월드 타이머가 돌지 않는다. 타이머를 쓰는 일(`TravelToLevel`의 페이드)은 메뉴를 닫은 뒤에 부른다(`UMenuWidget::OnRecallClicked`).
   - 메뉴 버튼은 WBP에서 **Is Focusable**을 끈다. 켜 두면 클릭한 버튼이 포커스를 가져가 Space / Enter가 그 버튼을 다시 누른다.
