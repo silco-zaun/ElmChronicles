@@ -181,6 +181,7 @@ void USaveSubsystem::OpenLevelURL(FString URL)
 
 void USaveSubsystem::OnPostLoadMap(UWorld* World)
 {
+	// 엔진 전역 알림이라 다른 GameInstance의 레벨(에디터 맵 열기 등)도 들어온다.이동 중인 우리 레벨만 처리한다.
 	if (!mIsTraveling || !IsValid(World) || World->GetGameInstance() != GetGameInstance())
 		return;
 

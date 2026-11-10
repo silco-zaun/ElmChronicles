@@ -17,17 +17,12 @@ public:
 
 protected:
 	// WBP_MainMenu에 같은 이름의 위젯이 있어야 한다.
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> mNewGameButton;
-
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> mContinueButton;
-
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> mOptionsButton;
-
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UButton> mQuitButton;
+	UPROPERTY(meta = (BindWidget)) TObjectPtr<UButton> mNewGameButton;
+	UPROPERTY(meta = (BindWidget)) TObjectPtr<UButton> mContinueButton;
+	UPROPERTY(meta = (BindWidget)) TObjectPtr<UButton> mOptionsButton;
+	UPROPERTY(meta = (BindWidget)) TObjectPtr<UButton> mQuitButton;
+	// 옵션 창. WBP_MainMenu 안에 화면 전체 크기로 놓는다. 처음에는 닫혀 있다.
+	UPROPERTY(meta = (BindWidget)) TObjectPtr<class UOptionsWidget> mOptionsWidget;
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -35,8 +30,9 @@ protected:
 private:
 	// 버튼의 OnClicked는 Dynamic 델리게이트라서 UFUNCTION 함수만 연결할 수 있다.
 	UFUNCTION()	void OnNewGameClicked();
-	UFUNCTION()	void OnQuitClicked();
 	UFUNCTION()	void OnContinueClicked();
+	UFUNCTION()	void OnOptionsClicked();
+	UFUNCTION()	void OnQuitClicked();
 
 	// 맵을 떠나기 시작하면 부른다. 버튼을 더 누르지 못하게 하고 메뉴를 흐리게 지운다.
 	void HideForTravel();

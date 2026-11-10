@@ -35,6 +35,7 @@
 | 옵션 저장 | 엔진 `UGameUserSettings`(GameUserSettings.ini). 마우스 감도는 엔진에 없는 값이라 자식 클래스 `UElmGameUserSettings`에 `Config` 프로퍼티로 둔다 | 세이브(`ElmSave.sav`)는 게임 진행용이라 섞지 않는다. 새 게임을 해도 옵션은 남아야 한다. |
 | 마우스 감도 값 | 배율(기본 1.0). 최종 감도 = `APlayerCharacter::mMouseSensitivity`(지금 0.5, 개발자가 맞춘 기본 감도) × 옵션 배율 | 기본 감도를 코드 한 곳에 남겨 둔다. |
 | 옵션 창 위치 | `WBP_Options`를 `WBP_MainMenu` 안에 두고(화면 전체, 반투명 배경) 열고 닫는다. 메인 화면에 의존하지 않게 만든다 | 나중에 B 메뉴에서도 쓸 수 있다. 이번 범위에서는 연결하지 않는다(2026-11-08 사용자 선택). |
+| 옵션 창 동작 | "적용"은 창을 닫지 않는다(반투명 배경 뒤로 바뀐 품질이 바로 보인다). "뒤로" = 닫기이고 적용하지 않은 값은 버린다(다음 `Open`이 지금 설정을 다시 읽는다). 콤보박스 항목은 `NativeOnInitialized`에서 한 번만 넣는다(인덱스 = 엔진 값). 지금 해상도가 지원 목록에 없으면 목록 맨 앞에 더한다. 처음 상태(닫힘)는 코드가 정한다 | 2026-11-10. 항목을 코드가 넣어야 순서(= `EWindowMode` / Scalability 값)가 코드와 어긋나지 않는다. WBP의 Default Options는 비워 둔다. |
 | 메뉴 위치 | 화면 오른쪽 가운데 | MainMenu 맵 구도(카메라 (-10000, -175, 210), `Kyle` (-9100, -300))에서 Kyle이 화면 가로 약 38%, 가운데보다 왼쪽에 선다. PIE에서 겹치면 `MenuBox` 앵커만 바꾼다. |
 | 떠날 때 메뉴 모습 | 버튼을 누르면 클릭을 막고(HitTestInvisible) `WBP_MainMenu`의 `FadeOut` 애니메이션(0.5초)으로 메뉴를 지운다 | 아래 주의 1. |
 
@@ -45,10 +46,14 @@
    - 애니메이션은 이름으로 찾는다. `UElmBaseWidget::NativeOnInitialized`가 WBP 애니메이션 객체 이름에서 `_INST`를 뗀 문자열을 키로 `mAnimMap`에 넣으므로, WBP의 애니메이션 이름이 정확히 `FadeOut`이어야 한다. `UMainMenuWidget::NativeOnInitialized`는 `Super`를 먼저 불러야 맵이 채워진다.
 2. **`DefaultPawnClass = nullptr`이면 엔진은 Pawn 만들기에 실패한 것으로 본다.** `RestartPlayerAtPlayerStart` → `FailedToRestartPlayer` → `APlayerController::FailedToSpawnPawn`이 컨트롤러를 `NAME_Inactive` 상태로 둔다(엔진 `GameModeBase.cpp`, `PlayerController.cpp`). 경고 로그는 없고 UI 입력에는 영향이 없다. 화면은 `ACameraActor::BeginPlay`가 Player 0의 뷰 타깃으로 잡는 `MenuCamera`가 보여 준다.
 3. **`WBP_MainMenu`는 C++ 빌드 뒤에만 만들 수 있다.** 부모가 `UMainMenuWidget`이기 때문이다. 그런데 `AMainMenuPlayerController` 생성자가 `ConstructorHelpers`로 이 WBP를 찾으므로, 빌드 직후 에디터를 처음 열 때는 `CDO Constructor (MainMenuPlayerController): Failed to find ... WBP_MainMenu` 에러가 한 번 난다(정상). WBP를 만들고 저장한 뒤 **에디터를 다시 열어야** CDO가 WBP를 찾는다.
+   - 3단계도 같은 순서 문제가 있다. `UMainMenuWidget`에 BindWidget `mOptionsWidget`이 생기므로, 빌드 직후 에디터를 열면 `WBP_MainMenu`가 "required widget binding mOptionsWidget ... not found" 컴파일 에러를 낸다. `WBP_Options`를 만들어 `WBP_MainMenu`에 `mOptionsWidget`으로 놓으면 사라진다(정상). 3단계는 `ConstructorHelpers`가 새 WBP를 찾지 않으므로 에디터 재시작은 필요 없다.
 4. **화면에 붙인 위젯은 레벨이 바뀔 때 엔진이 뗀다.** `UGameViewportSubsystem::HandleWorldCleanup`(`bAutoRemoveOnWorldRemoved`). 그래서 `AMainMenuPlayerController`에는 `EndPlay`가 없다.
 5. **PIE에서는 월드 패키지 이름에 `UEDPIE_0_`이 붙는다**(`/Game/Maps/ElmKingdom/UEDPIE_0_ElmKingdom`). 이어하기용 맵 이름은 `UWorld::RemovePIEPrefix`로 떼고 적는다(2단계). 패키지 게임에서는 붙지 않는다.
+   - 포탈 URL에도 붙을 수 있다(2026-11-10 로그 `TravelToLevel : /Game/Maps/ElmKingdom/UEDPIE_0_ElmKingdom#HeroHouse`). PIE 중에 한 번 연 맵은 엔진이 PIE 패키지로 등록하고(`UnrealEngine.cpp` `CreatePIEWorldByLoadingFromPackage` → `FSoftObjectPath::AddPIEPackageName`), 그 뒤에 읽은 맵의 Soft 참조(KyleHouse 포탈의 `mTargetLevel`)는 PIE 이름으로 고쳐진다. 맵은 제대로 열리고(`UEDPIE_0_ElmKingdom`을 연다) 패키지 게임에는 없는 일이라 그대로 둔다. 메인 화면에서 PIE를 시작하면 필드 맵도 "열어서" 들어가므로 이때부터 보인다. 이어하기 URL은 `WriteToSave`가 떼고 적으므로 붙지 않는다.
 6. **이어하기 자리는 한 번만 쓴다.** `USaveSubsystem`이 "이어하기로 도착한 첫 스폰"용 Transform을 들고 있다가 `AElmGameMode::RestartPlayer`가 꺼내면서 지운다. 지우지 않으면 그 뒤의 포탈 이동도 태그를 무시하고 저장한 자리에 선다. `RestartPlayerAtTransform`은 `FindPlayerStart`를 거치지 않는다.
 7. **창 모드 / 해상도는 PIE에서 바뀌지 않는다.** 해상도 요청(`FSystemResolution`)을 처리하는 곳이 `UGameEngine`이고(`GameEngine.cpp`), 에디터 PIE는 `UEditorEngine`이다. Standalone Game이나 패키지에서 확인한다.
+   - **Standalone은 다시 켜면 항상 창 모드, 에디터 창 크기로 뜬다.** 에디터가 명령줄에 `-windowed -ResX= -ResY=`를 붙이고(`PlayLevelNewProcess.cpp`), 시작할 때 `UGameEngine::ConditionallyOverrideSettings`가 이 값을 ini보다 앞세운다. 저장됐는지는 `Saved/Config/WindowsEditor/GameUserSettings.ini`의 `FullscreenMode` / `ResolutionSizeX`로 확인한다(에디터, PIE, Standalone이 이 파일 하나를 같이 쓴다). 다시 켰을 때 창이 그대로인지는 패키지 게임에서 본다.
+   - 2026-11-10 이 PC의 ini는 `FullscreenMode=1`(테두리 없는 창), 1536 × 864다. 그래서 PIE에서 옵션 창을 처음 열면 해상도 콤보박스가 꺼져 있다(주의 9, 정상).
 8. **PIE에서 그래픽 품질을 바꾸면 에디터 뷰포트 품질도 바뀐다.** Scalability CVar를 에디터와 함께 쓰고, 에디터에서는 `GEditorSettingsIni`에 저장된다(`UGameUserSettings::SaveSettings`). 테스트 뒤 에디터 뷰포트의 Scalability를 원래대로 돌려 둔다.
 9. **"테두리 없는 창"에서는 해상도 값이 무시된다.** 엔진이 바탕화면 해상도를 쓴다(`GameUserSettings.cpp`의 `WindowedFullscreen ? GetDesktopResolution()`). 그래서 이 모드에서는 해상도 콤보박스를 끈다.
 10. **`GetOverallScalabilityLevel()`은 항목별 품질이 섞여 있으면 -1을 돌려준다.** 그때는 품질 콤보박스를 비워 두고, 적용할 때도 고르지 않았으면 바꾸지 않는다.
@@ -60,6 +65,7 @@
     - 메인 화면 맵: `MainMenu_Change`를 `MainMenu`로 이름 바꾸고(옛 맵은 `MainMenu_Backup`), 1.3 KB짜리 리다이렉터 `MainMenu_Change.umap`이 남았다. `GameDefaultMap`이 이 리다이렉터를 가리킨다. 지금은 엔진이 리다이렉터를 따라가서 열리지만, Fix Up Redirectors로 리다이렉터가 지워지면 시작 맵을 잃는다.
 14. **SaveGame 파일에는 기본값과 같은 값이 쓰이지 않는다.** `UGameplayStatics::SaveGameToMemory`가 `ArNoDelta` 없이 `Serialize`하므로, CDO(헤더 기본값)와 같은 프로퍼티는 파일에서 빠지고 읽을 때 그때의 기본값이 들어간다(엔진 `GameplayStatics.cpp`). 그래서 헤더의 `SaveVersion` 기본값을 2로 바꾸면 버전 1 파일도 2로 읽힌다(1단계까지 만든 파일에는 `SaveVersion`이 아예 없다). 기본값은 1로 두고, 쓰는 쪽(`WritePlayer`)이 현재 번호를 넣는다. 다른 필드도 헤더 기본값을 바꾸면 옛 세이브에서 읽히는 값이 바뀐다.
 15. **저장한 자리가 맞는지는 확인하지 않는다.** 저장한 뒤 맵을 고쳐서 그 자리가 허공이 되면 그대로 떨어진다. 벽 속이 되면 Pawn 기본값 `AdjustIfPossibleButDontSpawnIfColliding`(엔진 `Pawn.cpp`)으로 엔진이 조금 밀어 보고, 밀 자리가 없으면 캐릭터를 만들지 못한다(`SpawnDefaultPawnAtTransform` 경고 → `FailedToRestartPlayer`, 조종할 캐릭터 없음). 맵을 크게 고쳤으면 테스트용 세이브를 다시 만든다.
+16. **`UComboBoxString::SetSelectedIndex`는 고른 항목이 바뀔 때만 `OnSelectionChanged`를 부른다**(엔진 `ComboBoxString.cpp`, 같은 항목이면 아무것도 하지 않는다). 그래서 창 모드 콤보박스의 이벤트만으로는 해상도 콤보박스를 켜고 끄는 일이 빠질 수 있어, `ReadSettings`가 끝에서 `UpdateResolutionEnabled`를 직접 부른다. 반대로 값이 바뀌면 코드에서 고를 때도 이벤트가 온다(SelectionType `Direct`).
 
 ## 목표 구조
 
@@ -104,8 +110,11 @@ virtual void RestartPlayer(AController* NewPlayer) override; // 이어하기 Tra
 // UI/MainMenu/OptionsWidget.h  (3단계, WBP_Options의 부모)
 // BindWidget: mWindowModeCombo / mResolutionCombo / mQualityCombo(UComboBoxString), mApplyButton, mBackButton
 //             (4단계) mSensitivitySlider(USlider), mSensitivityText
-void Open();   // 지금 설정을 읽어 콤보박스에 넣고 보인다
-void Close();
+TArray<FIntPoint> mResolutionList;  // 해상도 콤보박스 항목과 같은 순서의 값
+void Open();   // ReadSettings → 보이기
+void Close();  // Collapsed
+void ReadSettings();             // UGameUserSettings → 콤보박스 선택. 끝에서 UpdateResolutionEnabled (주의 16)
+void UpdateResolutionEnabled();  // 테두리 없는 창이면 해상도 콤보박스를 끈다 (주의 9)
 // 창 모드 콤보 순서 = EWindowMode 값(0 전체 화면, 1 테두리 없는 창, 2 창). 품질 콤보 순서 = Scalability 단계(0 낮음 ~ 3 최고)
 
 // Save/ElmGameUserSettings.h  (4단계, Project Settings → General Settings → Default Classes → Game User Settings Class)
@@ -117,9 +126,9 @@ static UElmGameUserSettings* Get();               // 설정 전이면 nullptr
 
 | 단계 | 내용 | 상태 |
 |---|---|---|
-| 1 | 메인 화면 골격 + 새 게임 + 게임 종료 (SaveSubsystem 페이드 공통화) | ☑ 2026-11-09 리뷰 통과. 남은 정리 하나: Game Default Map이 리다이렉터 `MainMenu_Change`를 가리킨다([에셋 작업](#에셋-작업)) |
-| 2 | 이어하기: 세이브에 맵 / 위치, 불러오기, 그 자리에 스폰 | ◐ 2026-11-10 가이드 다시 전달(2026-11-09 판은 반영되지 않았다), 반영 전. Game Default Map 정리도 이 단계에서 함께 한다 |
-| 3 | 옵션 창: 화면 모드 / 해상도 / 그래픽 품질 | ☐ |
+| 1 | 메인 화면 골격 + 새 게임 + 게임 종료 (SaveSubsystem 페이드 공통화) | ☑ 2026-11-09 리뷰 통과. Game Default Map 정리는 2026-11-10 2단계 커밋에서 했다 |
+| 2 | 이어하기: 세이브에 맵 / 위치, 불러오기, 그 자리에 스폰 | ☑ 2026-11-10 리뷰 통과(커밋 `0f488f8`) |
+| 3 | 옵션 창: 화면 모드 / 해상도 / 그래픽 품질 | ◐ 2026-11-10 가이드 전달, 반영 전 |
 | 4 | 마우스 감도: `UElmGameUserSettings`, `LookKey`, 옵션 창 슬라이더 | ☐ |
 | 5 | 마무리: CLAUDE.md 갱신, 이 문서 정리 | ☐ |
 
@@ -168,7 +177,8 @@ static UElmGameUserSettings* Get();               // 설정 전이면 nullptr
 |---|---|
 | 옵션 열기 | 반투명 배경 위에 옵션 창. 콤보박스에 지금 값이 골라져 있다. 뒤의 메뉴 버튼은 눌리지 않는다 |
 | 테두리 없는 창 고르기 | 해상도 콤보박스가 흐려진다 |
-| 창 + 1280×720 → 적용(Standalone) | 창이 그 크기가 된다. 게임을 다시 켜도 유지된다 |
+| 창 + 1280×720 → 적용(Standalone) | 창이 그 크기가 된다. `GameUserSettings.ini`에 `FullscreenMode=2`, `ResolutionSizeX=1280`이 적힌다(다시 켜면 창 크기는 에디터 값으로 돌아간다, 주의 7) |
+| 전체 화면 → 적용(Standalone) | 화면 전체가 된다. 창 모드로 되돌릴 수 있다 |
 | 품질 낮음 → 적용 | 그림자 / 화질이 눈에 띄게 낮아진다 |
 | 뒤로(적용 없이) | 바꾼 값이 버려지고, 다시 열면 지금 값이 보인다 |
 
@@ -177,7 +187,7 @@ static UElmGameUserSettings* Get();               // 설정 전이면 nullptr
 - 테스트: 감도 0.5 / 2.0으로 적용 → 새 게임 → 카메라 회전 속도가 다르다. 게임을 다시 켜도 값이 남는다(GameUserSettings.ini에 `[/Script/ElmChronicles.ElmGameUserSettings]` 섹션).
 
 ### 5단계: 마무리
-- CLAUDE.md: "메인 메뉴 레벨" 섹션(GameMode Override, PlayerStart 삭제, 컨트롤러 / 위젯), "레벨 이동 / 메모" 섹션(새 게임 / 이어하기 / 세이브 필드), 빌드 섹션의 시작 맵 줄(지금 "시작 맵은 `/Game/Maps/ElmKingdom/Field`"라고 적혀 있다 → `GameDefaultMap` = `MainMenu`, `EditorStartupMap` = `ElmKingdom`), 옵션(`UElmGameUserSettings`).
+- CLAUDE.md: "메인 메뉴 레벨" 섹션(GameMode Override, PlayerStart 삭제, 컨트롤러 / 위젯), "레벨 이동 / 메모" 섹션(새 게임 / 이어하기 / 세이브 필드), 빌드 섹션의 시작 맵 줄(지금 "시작 맵은 `/Game/Maps/ElmKingdom/Field`"라고 적혀 있다 → `GameDefaultMap` / `EditorStartupMap` = `MainMenu`. PIE를 필드 맵에서 하려면 그 맵을 열고 한다), 옵션(`UElmGameUserSettings`).
 - 커밋은 사용자가 한다. 끝나면 이 문서를 지울지 사용자에게 묻는다.
 
 ## 에셋 작업
@@ -186,7 +196,7 @@ static UElmGameUserSettings* Get();               // 설정 전이면 nullptr
 |---|---|---|---|
 | `Content/UI/MainMenu/WBP_MainMenu` (1단계) | 부모 `MainMenuWidget`, 빌드 뒤에 만든다. 루트 Canvas Panel(`RootCanvas`) 화면 전체. 그 아래 Vertical Box `MenuBox`(제목 Text "Elm Chronicles" 64 → Spacer 40 → 버튼 4개, 각 버튼 안 Text 28, Padding (40, 10)). `MenuBox` 슬롯은 오른쪽 가운데 앵커, Alignment (1, 0.5), Position (-120, 0), Size To Content. 버튼 4개 이름 = C++ 변수, **Is Focusable 끔**, 슬롯 Padding 아래 12 / Fill. 선택: 오른쪽 반투명 Image `RightShade`(Anchors (0.6, 0)~(1, 1), 색 (0, 0, 0, 0.35), `MenuBox`보다 먼저 그린다). 애니메이션 `FadeOut`: `RootCanvas`의 Render Opacity 0초 1 → 0.5초 0. (실제 루트 이름은 `CanvasPanel_31`) | 사용자 | ☑ 2026-11-09 (루트 Opacity 1, 버튼 4개 Is Focusable 끔 확인) |
 | `Content/Maps/MainMenu` (1단계) | World Settings → GameMode Override = `MainMenuGameMode`. 쓰지 않는 `PlayerStart`(-11200, 0) 삭제 | 사용자 | ☑ 2026-11-09 |
-| Project Settings → Maps & Modes (1단계) | Game Default Map = `MainMenu`(패키지 게임이 메인 화면에서 시작). Editor Startup Map은 필드 맵(`ElmKingdom`) | 사용자 | ◐ Game Default Map이 리다이렉터 `MainMenu_Change`를 가리킨다(주의 13). `MainMenu`로 다시 고른다 |
+| Project Settings → Maps & Modes (1단계) | Game Default Map = `MainMenu`(패키지 게임이 메인 화면에서 시작) | 사용자 | ☑ 2026-11-10. 사용자가 Editor Startup Map도 `MainMenu`로 바꿨다(그 전에는 `ElmKingdom`) |
 | `Content/UI/MainMenu/WBP_Options` (3단계) | 부모 `OptionsWidget`. 화면 전체 반투명 배경(Visible) + 가운데 창. 콤보박스 3개, 버튼 2개(Is Focusable 끔) | 사용자 | ☐ |
 | `WBP_MainMenu` (3단계) | `WBP_Options`를 `mOptionsWidget`으로 배치(화면 전체 앵커, Hierarchy 맨 아래) | 사용자 | ☐ |
 | Project Settings → General Settings → Default Classes (4단계) | Game User Settings Class = `ElmGameUserSettings` → 에디터 재시작 | 사용자 | ☐ |
