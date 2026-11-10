@@ -6,8 +6,10 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
 #include "TimerManager.h"
 
 void USaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -54,6 +56,10 @@ bool USaveSubsystem::SaveToDisk(APlayerCharacter* Player)
 	if (mIsTraveling || !IsValid(Player) || Player->IsDead())
 		return false;
 
+	// 이어하기는 저장한 자리에 세운다. 점프 중에 저장하면 허공에서 시작해 떨어진다. (섬 사이였다면 끝없이 떨어진다)
+	if (Player->GetCharacterMovement()->IsFalling())
+		return false;
+
 	// 포탈 이동과 같은 메모를 그대로 디스크에 쓴다.
 	// 메모는 새 레벨이 초기화할 때만 읽으므로 지금 덮어써도 이번 레벨에는 영향이 없다.
 	WritePlayer(Player);
@@ -76,11 +82,61 @@ bool USaveSubsystem::StartNewGame(const TSoftObjectPtr<UWorld>& Level, FName Sta
 	return true;
 }
 
+bool USaveSubsystem::HasSaveOnDisk() const
+{
+	return UGameplayStatics::DoesSaveGameExist(SaveSlotName, 0);
+}
+
+bool USaveSubsystem::ContinueGame(const TSoftObjectPtr<UWorld>& FallbackLevel, FName FallbackStartTag)
+{
+	// 메인 화면 버튼을 빠르게 두 번 눌러도 한 번만 연다.
+	if (mIsTraveling || FallbackLevel.IsNull())
+		return false;
+
+	// 파일이 없거나 깨졌으면 nullptr이다. (다른 클래스로 저장된 파일이면 Cast가 nullptr)
+	UElmSaveGame* Loaded = Cast<UElmSaveGame>(UGameplayStatics::LoadGameFromSlot(SaveSlotName, 0));
+
+	if (!Loaded)
+		return false;
+
+	// 읽은 세이브가 그대로 메모가 된다. 새 레벨의 부품들이 포탈로 온 것처럼 각자 초기화할 때 이 메모를 읽는다.
+	// (능력치 = APlayerCharacter::InitAttributes, 가방 / 장비 = InitInventory, 퀘스트 = InitQuests)
+	mSaveGame = Loaded;
+
+	// 옛 세이브(버전 1)는 맵이 적혀 있지 않다. 맵 이름이 바뀌었으면 그 맵이 없다.
+	// 없는 맵을 열면 검은 화면에서 멈추므로, 둘 다 새 게임 자리에서 메모의 능력치 / 가방으로 이어 간다.
+	if (Loaded->LevelName.IsEmpty() || !FPackageName::DoesPackageExist(Loaded->LevelName))
+	{
+		UE_LOG(LogTestDebug, Warning, TEXT("ContinueGame : 저장한 맵을 쓸 수 없다(%s). 새 게임 자리에서 이어 간다."), *Loaded->LevelName);
+		FadeOutAndOpen(MakeLevelURL(FallbackLevel, FallbackStartTag));
+		return true;
+	}
+
+	// 저장한 맵은 태그 없이 연다. 도착한 맵의 AElmGameMode::RestartPlayer가 이 자리를 꺼내 PlayerStart 대신 쓴다.
+	mContinueTransform = FTransform(Loaded->Rotation, Loaded->Location);
+	FadeOutAndOpen(Loaded->LevelName);
+	return true;
+}
+
+bool USaveSubsystem::ConsumeContinueTransform(FTransform& OutTransform)
+{
+	if (!mContinueTransform.IsSet())
+		return false;
+
+	OutTransform = mContinueTransform.GetValue();
+	// 한 번만 쓴다. 남겨 두면 그 뒤의 포탈 이동도 태그를 무시하고 저장한 자리에 선다.
+	mContinueTransform.Reset();
+	return true;
+}
+
 void USaveSubsystem::WritePlayer(APlayerCharacter* Player)
 {
 	// 처음 적을 때만 만든다. UPROPERTY로 잡고 있어서 GameInstance가 살아 있는 동안 GC되지 않는다.
 	if (!mSaveGame)
 		mSaveGame = NewObject<UElmSaveGame>(this);
+
+	// 지금 구조의 번호를 적는다. 헤더 기본값(1)은 "번호가 없는 옛 파일"을 읽을 때 쓰이므로 바꾸지 않는다.
+	mSaveGame->SaveVersion = UElmSaveGame::CurrentVersion;
 
 	Player->WriteToSave(*mSaveGame);
 }
@@ -125,9 +181,12 @@ void USaveSubsystem::OpenLevelURL(FString URL)
 
 void USaveSubsystem::OnPostLoadMap(UWorld* World)
 {
-	// 엔진 전역 알림이라 다른 GameInstance의 레벨(에디터 맵 열기 등)도 들어온다. 이동 중인 우리 레벨만 처리한다.
 	if (!mIsTraveling || !IsValid(World) || World->GetGameInstance() != GetGameInstance())
 		return;
+
+	// 이어하기 자리는 이 맵의 첫 스폰(AElmGameMode::RestartPlayer)이 이미 꺼냈다.
+	// GameMode가 AElmGameMode가 아닌 맵이라 꺼내지 않았어도, 다음 이동에 남지 않게 여기서 버린다.
+	mContinueTransform.Reset();
 
 	// LoadMap은 플레이어 스폰 → BeginPlay → 이 알림 순서라서 새 컨트롤러와 카메라가 이미 있다.
 	// 새 카메라는 출발 레벨의 페이드를 모르므로 첫 화면이 그려지기 전에 검정으로 덮는다. (자동으로 변하지 않는 수동 페이드)

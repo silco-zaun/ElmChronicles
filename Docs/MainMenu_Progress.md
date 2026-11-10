@@ -29,6 +29,7 @@
 | 저장한 맵이 없을 때 | `FPackageName::DoesPackageExist`로 확인하고, 없으면 옛 세이브처럼 새 게임 자리에서 메모의 능력치 / 가방으로 이어 간다 | 맵 이름은 바뀔 수 있다(2026-11-09 필드 맵이 `ElmKingdom`이 됐다). 없는 맵을 열면 검은 화면에서 멈춘다. `DoesPackageExist`는 패키지 게임(IoStore)에서도 확인한다(엔진 `PackageName.cpp` `InternalDoesPackageExistEx`). |
 | 공중에서 저장 | `SaveToDisk`가 떨어지는 중(`IsFalling`)이면 거절한다(메뉴에는 기존 문구 "저장하지 못했습니다.") | 이어하기는 저장한 자리에 세운다. 섬 사이 점프 중에 저장하면 허공에서 시작해 끝없이 떨어진다(KillZ 처리 미구현). 2026-11-09 Claude 제안. |
 | 세이브 버전 번호 | 헤더 기본값은 1(가장 옛 버전) 그대로 두고, `USaveSubsystem::WritePlayer`가 적을 때 `UElmSaveGame::CurrentVersion`(2)을 넣는다. 옛 세이브인지는 버전이 아니라 `LevelName`이 비었는지로 판단한다 | 주의 14 |
+| 이어하기 자리 지우기 | `ConsumeContinueTransform`이 꺼내면서 지우고, 남은 것은 `OnPostLoadMap`이 버린다(도착한 맵의 GameMode가 `AElmGameMode`가 아니라서 꺼내지 않은 경우) | 2026-11-10 변경. 처음 안은 `StartNewGame`에서 지우기였는데, 그러면 새 게임 길 하나만 막는다. LoadMap은 플레이어 스폰(`SpawnPlayActor` → `RestartPlayer`) → `BeginPlay` → `PostLoadMapWithWorld` 순서라서(엔진 `UnrealEngine.cpp` `UEngine::LoadMap`) 도착 알림 때 지우면 어느 맵이든 다음 이동에 남지 않는다. |
 | 게임 종료 | 메인 화면에서는 묻지 않고 바로 끈다 | 잃을 진행이 없다. 게임 안 메뉴의 확인 상자(`UConfirmWidget`)는 `AElmPlayerController`에 묶여 있어서 그대로 쓸 수 없다. |
 | 옵션 항목 | 화면 모드 + 해상도, 그래픽 품질(Scalability 전체 4단계), 마우스 감도 | 2026-11-08 사용자 선택. 소리 볼륨은 프로젝트에 소리 에셋이 하나도 없어서 뺐다. VSync는 고르지 않았다. |
 | 옵션 저장 | 엔진 `UGameUserSettings`(GameUserSettings.ini). 마우스 감도는 엔진에 없는 값이라 자식 클래스 `UElmGameUserSettings`에 `Config` 프로퍼티로 둔다 | 세이브(`ElmSave.sav`)는 게임 진행용이라 섞지 않는다. 새 게임을 해도 옵션은 남아야 한다. |
@@ -52,12 +53,13 @@
 9. **"테두리 없는 창"에서는 해상도 값이 무시된다.** 엔진이 바탕화면 해상도를 쓴다(`GameUserSettings.cpp`의 `WindowedFullscreen ? GetDesktopResolution()`). 그래서 이 모드에서는 해상도 콤보박스를 끈다.
 10. **`GetOverallScalabilityLevel()`은 항목별 품질이 섞여 있으면 -1을 돌려준다.** 그때는 품질 콤보박스를 비워 두고, 적용할 때도 고르지 않았으면 바꾸지 않는다.
 11. **Game User Settings Class는 에디터를 다시 열어야 바뀐다**(`UEngine::GameUserSettingsClassName`이 `ConfigRestartRequired`). 설정 전에는 `UGameUserSettings::GetGameUserSettings()`가 엔진 기본 클래스라 `Cast<UElmGameUserSettings>`가 nullptr이다. 읽는 쪽(`LookKey`)은 nullptr이면 배율 1로 쓴다.
-12. **2026-11-09 기준 디스크 세이브가 없다**(`Saved/SaveGames` 폴더 없음). 2단계를 빌드하기 전에 지금 빌드로 B → "저장하기"를 하면 버전 1(맵 없음) 세이브가 생긴다. 2단계의 "옛 세이브" 확인에 쓰도록 `ElmSave.sav`를 다른 이름으로 복사해 둔다(2단계 빌드로 저장하면 덮어쓴다).
+12. **2026-11-09 기준 디스크 세이브가 없다**(`Saved/SaveGames` 폴더 없음. 2026-11-10 `C:\ElmChronicles`에도 없다). 2단계를 빌드하기 전에 지금 빌드로 B → "저장하기"를 하면 버전 1(맵 없음) 세이브가 생긴다. 2단계의 "옛 세이브" 확인에 쓰도록 `ElmSave.sav`를 다른 이름으로 복사해 둔다(2단계 빌드로 저장하면 덮어쓴다).
 13. **2026-11-09에 사용자가 이름을 바꿨다**(이 계획 밖에서 같이 한 일).
     - 게임 GameMode: `AElmGameModeBase` → `AElmGameMode`(`GameModes/ElmGameMode.h`, `GlobalDefaultGameMode`도 바꿈). 내용은 이름만 다르다. 백업 / 테스트 맵 3개(`ElmKingdom/Field_Backup`, `ElmKingdom/Field_Old`, `Test`)에는 옛 클래스 이름이 남아 있다. ini에 `CoreRedirects`가 없어서, 이 맵들을 열거나 쿠킹하면 옛 클래스를 찾지 못한다(GameMode Override가 비면 전역 기본값 `AElmGameMode`로 돈다).
     - 필드 맵: 이제 `/Game/Maps/ElmKingdom/ElmKingdom`(`EditorStartupMap`, KyleHouse 포탈 도착 `ElmKingdom#HeroHouse`). `Field.umap`은 없다.
     - 메인 화면 맵: `MainMenu_Change`를 `MainMenu`로 이름 바꾸고(옛 맵은 `MainMenu_Backup`), 1.3 KB짜리 리다이렉터 `MainMenu_Change.umap`이 남았다. `GameDefaultMap`이 이 리다이렉터를 가리킨다. 지금은 엔진이 리다이렉터를 따라가서 열리지만, Fix Up Redirectors로 리다이렉터가 지워지면 시작 맵을 잃는다.
 14. **SaveGame 파일에는 기본값과 같은 값이 쓰이지 않는다.** `UGameplayStatics::SaveGameToMemory`가 `ArNoDelta` 없이 `Serialize`하므로, CDO(헤더 기본값)와 같은 프로퍼티는 파일에서 빠지고 읽을 때 그때의 기본값이 들어간다(엔진 `GameplayStatics.cpp`). 그래서 헤더의 `SaveVersion` 기본값을 2로 바꾸면 버전 1 파일도 2로 읽힌다(1단계까지 만든 파일에는 `SaveVersion`이 아예 없다). 기본값은 1로 두고, 쓰는 쪽(`WritePlayer`)이 현재 번호를 넣는다. 다른 필드도 헤더 기본값을 바꾸면 옛 세이브에서 읽히는 값이 바뀐다.
+15. **저장한 자리가 맞는지는 확인하지 않는다.** 저장한 뒤 맵을 고쳐서 그 자리가 허공이 되면 그대로 떨어진다. 벽 속이 되면 Pawn 기본값 `AdjustIfPossibleButDontSpawnIfColliding`(엔진 `Pawn.cpp`)으로 엔진이 조금 밀어 보고, 밀 자리가 없으면 캐릭터를 만들지 못한다(`SpawnDefaultPawnAtTransform` 경고 → `FailedToRestartPlayer`, 조종할 캐릭터 없음). 맵을 크게 고쳤으면 테스트용 세이브를 다시 만든다.
 
 ## 목표 구조
 
@@ -80,6 +82,7 @@ bool StartNewGame(const TSoftObjectPtr<UWorld>& Level, FName StartTag);  // 메�
 bool HasSaveOnDisk() const;                                                // (2단계)
 bool ContinueGame(const TSoftObjectPtr<UWorld>& FallbackLevel, FName FallbackStartTag); // (2단계) LoadGameFromSlot → 메모
 bool ConsumeContinueTransform(FTransform& OutTransform);                   // (2단계) 한 번 꺼내면 지운다
+TOptional<FTransform> mContinueTransform;                                  // (2단계) ContinueGame이 넣고, RestartPlayer가 꺼내고, OnPostLoadMap이 남은 것을 버린다
 static FString MakeLevelURL(const TSoftObjectPtr<UWorld>& Level, FName StartTag); // "맵경로#태그"
 void FadeOutAndOpen(const FString& URL);  // 포탈 / 귀환 / 사망 / 새 게임 / 이어하기가 같이 쓴다
 // 1단계에서 나누는 방법:
@@ -115,7 +118,7 @@ static UElmGameUserSettings* Get();               // 설정 전이면 nullptr
 | 단계 | 내용 | 상태 |
 |---|---|---|
 | 1 | 메인 화면 골격 + 새 게임 + 게임 종료 (SaveSubsystem 페이드 공통화) | ☑ 2026-11-09 리뷰 통과. 남은 정리 하나: Game Default Map이 리다이렉터 `MainMenu_Change`를 가리킨다([에셋 작업](#에셋-작업)) |
-| 2 | 이어하기: 세이브에 맵 / 위치, 불러오기, 그 자리에 스폰 | ◐ 2026-11-09 가이드 전달, 반영 전 |
+| 2 | 이어하기: 세이브에 맵 / 위치, 불러오기, 그 자리에 스폰 | ◐ 2026-11-10 가이드 다시 전달(2026-11-09 판은 반영되지 않았다), 반영 전. Game Default Map 정리도 이 단계에서 함께 한다 |
 | 3 | 옵션 창: 화면 모드 / 해상도 / 그래픽 품질 | ☐ |
 | 4 | 마우스 감도: `UElmGameUserSettings`, `LookKey`, 옵션 창 슬라이더 | ☐ |
 | 5 | 마무리: CLAUDE.md 갱신, 이 문서 정리 | ☐ |
@@ -143,7 +146,7 @@ static UElmGameUserSettings* Get();               // 설정 전이면 nullptr
 | 로그 | `LogTestDebug: TravelToLevel : /Game/Maps/ElmKingdom/KyleHouse#Room`. BindWidget 에러와 `LogHotReload`가 없다 |
 
 ### 2단계: 이어하기
-- 작업: `ElmSaveGame.h`(필드 3개, `CurrentVersion = 2`), `PlayerCharacter.cpp`(`WriteToSave`에 맵 / 위치 / Yaw), `SaveSubsystem`(`HasSaveOnDisk`, `ContinueGame`(맵이 없으면 새 게임 자리), `ConsumeContinueTransform`, 새 게임에서도 이어하기 Transform 지우기, `WritePlayer`에서 버전 넣기, `SaveToDisk`에서 공중 거절), `ElmGameMode`(`RestartPlayer` 재정의), `MainMenuGameMode::ContinueGame`, `MainMenuWidget`(이어하기 버튼 켜기 / 연결).
+- 작업: `ElmSaveGame.h`(필드 3개, `CurrentVersion = 2`), `PlayerCharacter.cpp`(`WriteToSave`에 맵 / 위치 / Yaw), `SaveSubsystem`(`HasSaveOnDisk`, `ContinueGame`(맵이 없으면 새 게임 자리), `ConsumeContinueTransform`, `OnPostLoadMap`에서 남은 이어하기 Transform 버리기, `WritePlayer`에서 버전 넣기, `SaveToDisk`에서 공중 거절), `ElmGameMode`(`RestartPlayer` 재정의), `MainMenuGameMode::ContinueGame`, `MainMenuWidget`(이어하기 버튼 켜기 / 연결).
 - 테스트:
 
 | 확인 | 기대 결과 |

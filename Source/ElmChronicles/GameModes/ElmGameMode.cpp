@@ -26,6 +26,23 @@ AElmGameMode::AElmGameMode()
 	mRecallStartTag = TEXT("Room");
 }
 
+void AElmGameMode::RestartPlayer(AController* NewPlayer)
+{
+	// 꺼내면서 지워지므로 그 뒤의 스폰(포탈로 다른 맵에 도착 등)은 평소처럼 PlayerStart에 선다.
+	USaveSubsystem* SaveSubsystem = GetGameInstance()->GetSubsystem<USaveSubsystem>();
+	FTransform ContinueTransform;
+
+	if (SaveSubsystem && SaveSubsystem->ConsumeContinueTransform(ContinueTransform))
+	{
+		// ChoosePlayerStart는 PlayerStart 액터를 돌려줘야 해서 "좌표"를 줄 수 없다.
+		// RestartPlayerAtTransform은 PlayerStart를 찾지 않고 이 자리에 Pawn을 만들고, 카메라 방향(Control Rotation)도 이 회전으로 맞춘다.
+		RestartPlayerAtTransform(NewPlayer, ContinueTransform);
+		return;
+	}
+
+	Super::RestartPlayer(NewPlayer);
+}
+
 AActor* AElmGameMode::ChoosePlayerStart_Implementation(AController* Player)
 {
 	// 포탈 태그(URL의 #태그)로 찾는 일은 이 함수보다 먼저 FindPlayerStart가 끝냈다.

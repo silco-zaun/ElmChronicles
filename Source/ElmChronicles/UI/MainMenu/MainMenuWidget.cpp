@@ -3,6 +3,8 @@
 
 #include "MainMenuWidget.h"
 #include "../../GameModes/MainMenuGameMode.h"
+#include "../../Subsystem/SaveSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -15,12 +17,16 @@ void UMainMenuWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 
-	// 위젯이 처음 만들어질 때 한 번만 연결한다. (NativeConstruct는 화면에 붙을 때마다 불려서 두 번 연결될 수 있다)
 	mNewGameButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnNewGameClicked);
+	mContinueButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnContinueClicked);
 	mQuitButton->OnClicked.AddDynamic(this, &UMainMenuWidget::OnQuitClicked);
 
-	// 이어하기는 2단계(세이브에 맵 / 위치 추가), 옵션은 3단계에서 연결한다. 그때까지 꺼 둔다.
-	mContinueButton->SetIsEnabled(false);
+	// 세이브 파일이 없으면 이어 갈 게임이 없으므로 끈다.
+	// 메인 화면에서는 저장할 수 없으므로(캐릭터가 없다) 처음 만들 때 한 번 정하면 화면을 떠날 때까지 맞다.
+	USaveSubsystem* SaveSubsystem = GetGameInstance()->GetSubsystem<USaveSubsystem>();
+	mContinueButton->SetIsEnabled(SaveSubsystem && SaveSubsystem->HasSaveOnDisk());
+
+	// 옵션은 3단계에서 연결한다. 그때까지 꺼 둔다.
 	mOptionsButton->SetIsEnabled(false);
 }
 
@@ -30,6 +36,20 @@ void UMainMenuWidget::OnNewGameClicked()
 
 	if (GameMode && GameMode->StartNewGame())
 		HideForTravel();
+}
+
+void UMainMenuWidget::OnContinueClicked()
+{
+	AMainMenuGameMode* GameMode = GetWorld()->GetAuthGameMode<AMainMenuGameMode>();
+
+	if (GameMode && GameMode->ContinueGame())
+	{
+		HideForTravel();
+		return;
+	}
+
+	// 파일은 있는데 깨졌거나 읽지 못한 경우다. 다시 눌러도 같으므로 끈다.
+	mContinueButton->SetIsEnabled(false);
 }
 
 void UMainMenuWidget::OnQuitClicked()

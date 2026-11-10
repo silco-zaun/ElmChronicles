@@ -36,6 +36,7 @@ private:
 	// 버튼의 OnClicked는 Dynamic 델리게이트라서 UFUNCTION 함수만 연결할 수 있다.
 	UFUNCTION()	void OnNewGameClicked();
 	UFUNCTION()	void OnQuitClicked();
+	UFUNCTION()	void OnContinueClicked();
 
 	// 맵을 떠나기 시작하면 부른다. 버튼을 더 누르지 못하게 하고 메뉴를 흐리게 지운다.
 	void HideForTravel();

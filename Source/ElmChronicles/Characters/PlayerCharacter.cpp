@@ -25,11 +25,13 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/Package.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -454,6 +456,14 @@ void APlayerCharacter::WriteToSave(UElmSaveGame& Save) const
 	// (아래 ASC 확인에서 return할 수 있으므로 그 앞에 둔다)
 	if (const AElmPlayerController* PlayerController = GetController<AElmPlayerController>())
 		PlayerController->GetQuest()->WriteToSave(Save.Quests);
+
+	// 이어하기 자리. 맵은 OpenLevel에 그대로 넘길 수 있는 패키지 이름으로 적는다.
+	// PIE에서는 패키지 이름에 UEDPIE_0_이 붙으므로(/Game/Maps/ElmKingdom/UEDPIE_0_ElmKingdom) 떼고 적는다. 패키지 게임에서는 붙지 않는다.
+	// (아래 ASC 확인에서 return할 수 있으므로 그 앞에 둔다)
+	Save.LevelName = UWorld::RemovePIEPrefix(GetWorld()->GetPackage()->GetName());
+	Save.Location = GetActorLocation();
+	// 캐릭터는 Yaw로만 돈다. 기울어진 채 서지 않게 Yaw만 남긴다.
+	Save.Rotation = FRotator(0.0, GetActorRotation().Yaw, 0.0);
 
 	// 능력치는 PlayerState의 ASC에 있다. 레벨을 옮기면 PlayerState째로 사라지므로 숫자만 적어 둔다.
 	// 읽을 때 SetNumericAttributeBase로 넣으므로 적을 때도 Base 값을 읽는다. (지속형 GE의 버프가 섞이지 않는다)

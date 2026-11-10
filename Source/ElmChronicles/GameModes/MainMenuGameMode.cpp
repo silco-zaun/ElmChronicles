@@ -24,3 +24,11 @@ bool AMainMenuGameMode::StartNewGame()
 
 	return SaveSubsystem && SaveSubsystem->StartNewGame(mNewGameLevel, mNewGameStartTag);
 }
+
+bool AMainMenuGameMode::ContinueGame()
+{
+	USaveSubsystem* SaveSubsystem = GetGameInstance()->GetSubsystem<USaveSubsystem>();
+
+	// 저장한 맵을 쓸 수 없을 때 갈 자리로 새 게임 자리를 넘긴다.
+	return SaveSubsystem && SaveSubsystem->ContinueGame(mNewGameLevel, mNewGameStartTag);
+}

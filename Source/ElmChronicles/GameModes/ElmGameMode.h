@@ -32,6 +32,10 @@ protected:
 	// 쓰러진 뒤 화면이 어두워지기 시작할 때까지의 시간(초). 그동안 쓰러지는 애니메이션을 보여 준다.
 	static constexpr float RespawnDelay = 2.f;
 
+public:
+	// 메인 화면 "이어하기"로 온 첫 스폰이면 PlayerStart 대신 저장한 자리에 세운다. 그 밖에는 엔진 기본(FindPlayerStart)이다.
+	virtual void RestartPlayer(AController* NewPlayer) override;
+
 protected:
 	// 포탈 태그 없이 들어왔을 때 설 PlayerStart를 고른다. 엔진 기본은 무작위라서 "태그 없는 PlayerStart"를 기본 자리로 정한다.
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;

@@ -26,4 +26,7 @@ protected:
 public:
 	// 메인 화면 "새 게임". 이미 이동을 시작했으면 false를 돌려준다.
 	bool StartNewGame();
+	// 메인 화면 "이어하기". 저장한 맵을 쓸 수 없으면(옛 세이브, 없어진 맵) 새 게임 자리에서 이어 간다.
+	// 이미 이동을 시작했거나 세이브를 읽지 못하면 false를 돌려준다.
+	bool ContinueGame();
 };
