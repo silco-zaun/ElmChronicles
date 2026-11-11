@@ -23,6 +23,10 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<class UMainMenuWidget> mMainMenuWidget;
 
+	// 옵션 창 같은 팝업. 게임 컨트롤러(AElmPlayerController)에도 같은 컴포넌트가 붙는다(5단계).
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<class UPopupComponent> mPopup;
+
 protected:
 	virtual void BeginPlay() override;
 };

@@ -2,6 +2,7 @@
 
 
 #include "OptionsWidget.h"
+#include "../../Player/PopupComponent.h"
 #include "GameFramework/GameUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -136,5 +137,8 @@ void UOptionsWidget::OnApplyClicked()
 
 void UOptionsWidget::OnBackClicked()
 {
-	Close();
+	// 열 때와 같은 길(팝업 컴포넌트)로 닫는다.
+	// 게임에서는 닫힌 뒤 커서 / 입력 모드를 컨트롤러가 다시 맞춰야 하는데, 컴포넌트를 거쳐야 컨트롤러가 알 수 있다(5단계).
+	if (UPopupComponent* Popup = UPopupComponent::Get(GetOwningPlayer()))
+		Popup->CloseOptions();
 }

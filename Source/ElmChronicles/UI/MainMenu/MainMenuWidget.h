@@ -21,8 +21,6 @@ protected:
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UButton> mContinueButton;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UButton> mOptionsButton;
 	UPROPERTY(meta = (BindWidget)) TObjectPtr<UButton> mQuitButton;
-	// 옵션 창. WBP_MainMenu 안에 화면 전체 크기로 놓는다. 처음에는 닫혀 있다.
-	UPROPERTY(meta = (BindWidget)) TObjectPtr<class UOptionsWidget> mOptionsWidget;
 
 protected:
 	virtual void NativeOnInitialized() override;

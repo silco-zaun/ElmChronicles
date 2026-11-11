@@ -2,11 +2,15 @@
 
 
 #include "MainMenuPlayerController.h"
+#include "PopupComponent.h"
 #include "../UI/MainMenu/MainMenuWidget.h"
 #include "UObject/ConstructorHelpers.h"
 
 AMainMenuPlayerController::AMainMenuPlayerController()
 {
+	// 옵션 창 같은 팝업은 컴포넌트가 맡는다. 팝업 층은 컴포넌트가 BeginPlay에서 화면에 붙인다.
+	mPopup = CreateDefaultSubobject<UPopupComponent>(TEXT("PopupComponent"));
+
 	static ConstructorHelpers::FClassFinder<UMainMenuWidget>
 		MainMenuWidgetClass(TEXT("/Script/UMGEditor.WidgetBlueprint'/Game/UI/MainMenu/WBP_MainMenu.WBP_MainMenu_C'"));
 

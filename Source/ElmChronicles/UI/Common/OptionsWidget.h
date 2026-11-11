@@ -8,7 +8,7 @@
 
 // 옵션 창. 화면 모드 / 해상도 / 그래픽 품질을 고르고 "적용"으로 바꾼다.
 // 값은 엔진 UGameUserSettings가 들고 GameUserSettings.ini에 저장한다. (게임 진행 세이브 ElmSave.sav와 섞지 않는다)
-// 메인 화면에 의존하지 않는다. 띄우는 쪽은 Open만 부르고, 닫기는 이 창의 "뒤로"가 한다. (나중에 B 메뉴에서도 쓸 수 있다)
+// 팝업 층(WBP_PopupLayer)에 있고 UPopupComponent가 열고 닫는다. 메인 화면과 게임(B 메뉴, 5단계)이 같은 창을 쓴다.
 UCLASS()
 class ELMCHRONICLES_API UOptionsWidget : public UElmBaseWidget
 {

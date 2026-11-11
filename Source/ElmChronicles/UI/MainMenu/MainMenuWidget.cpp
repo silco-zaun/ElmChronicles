@@ -2,8 +2,8 @@
 
 
 #include "MainMenuWidget.h"
-#include "OptionsWidget.h"
 #include "../../GameModes/MainMenuGameMode.h"
+#include "../../Player/PopupComponent.h"
 #include "../../Subsystem/SaveSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -55,8 +55,10 @@ void UMainMenuWidget::OnContinueClicked()
 
 void UMainMenuWidget::OnOptionsClicked()
 {
-	// 옵션 창이 지금 설정을 읽어 스스로 보인다. 닫기는 옵션 창의 "뒤로"가 한다.
-	mOptionsWidget->Open();
+	// 옵션 창은 이 위젯이 아니라 팝업 층에 있다.
+	// 게임 안 메뉴(B)도 같은 길로 연다(5단계).
+	if (UPopupComponent* Popup = UPopupComponent::Get(GetOwningPlayer()))
+		Popup->OpenOptions();
 }
 
 void UMainMenuWidget::OnQuitClicked()
